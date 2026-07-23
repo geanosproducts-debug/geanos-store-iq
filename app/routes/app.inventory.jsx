@@ -1,6 +1,9 @@
 import { useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import InventorySummary from "../Components/inventory/InventorySummary";
+import InventoryThresholds from "../Components/inventory/InventoryThresholds";
+import InventoryNeedsAttention from "../Components/inventory/InventoryNeedsAttention";
 
 const INVENTORY_QUERY = `#graphql
   query GetInventoryProducts($cursor: String) {
@@ -9,9 +12,11 @@ const INVENTORY_QUERY = `#graphql
       after: $cursor
       query: "tracks_inventory:true"
     ) {
-      nodes {
-        id
-        totalInventory
+     nodes {
+  id
+  title
+  status
+  totalInventory
       }
       pageInfo {
         hasNextPage
@@ -27,6 +32,7 @@ async function fetchInventoryStatistics(admin) {
   let lowStock = 0;
   let highStock = 0;
 
+  const products = [];
   let cursor = null;
   let hasNextPage = true;
   let pagesFetched = 0;
@@ -59,18 +65,31 @@ async function fetchInventoryStatistics(admin) {
     const { nodes, pageInfo } = result.data.products;
 
     for (const product of nodes) {
-      const quantity = product.totalInventory ?? 0;
+  const quantity = product.totalInventory ?? 0;
 
-      tracked += 1;
+  let inventoryStatus = "Normal Stock";
 
-      if (quantity <= 0) {
-        outOfStock += 1;
-      } else if (quantity <= 10) {
-        lowStock += 1;
-      } else if (quantity > 50) {
-        highStock += 1;
-      }
-    }
+  tracked += 1;
+
+  if (quantity <= 0) {
+    outOfStock += 1;
+    inventoryStatus = "Out of Stock";
+  } else if (quantity <= 10) {
+    lowStock += 1;
+    inventoryStatus = "Low Stock";
+  } else if (quantity > 50) {
+    highStock += 1;
+    inventoryStatus = "High Stock";
+  }
+
+  products.push({
+    id: product.id,
+    title: product.title,
+    productStatus: product.status,
+    quantity,
+    inventoryStatus,
+  });
+}
 
     pagesFetched += 1;
     hasNextPage = pageInfo.hasNextPage;
@@ -82,6 +101,7 @@ async function fetchInventoryStatistics(admin) {
     outOfStock,
     lowStock,
     highStock,
+    products,
     pagesFetched,
     truncated: hasNextPage,
   };
@@ -99,90 +119,66 @@ export default function InventoryPage() {
     outOfStock,
     lowStock,
     highStock,
+    products,
     pagesFetched,
     truncated,
   } = useLoaderData();
 
   return (
-    <s-page heading="Inventory Intelligence">
-      <s-section heading="Inventory Summary">
-        <s-card>
-          <s-stack direction="block" gap="base">
-            <s-stack direction="inline" gap="base">
-              <s-box padding="base" inlineSize="25%">
-                <s-stack direction="block" gap="small">
-                  <s-paragraph tone="subdued">
-                    📦 Inventory Tracked
-                  </s-paragraph>
+    <s-page heading="Inventory Intelligence Dashboard">
+      <InventorySummary
+      tracked={tracked}
+      outOfStock={outOfStock}
+      lowStock={lowStock}
+      highStock={highStock}
+      pagesFetched={pagesFetched}
+      truncated={truncated}
+    />
 
-                  <s-paragraph>{tracked}</s-paragraph>
-                </s-stack>
-              </s-box>
+    <s-section heading="Needs Attention (3)">
+  <s-card>
 
-              <s-box padding="base" inlineSize="25%">
-                <s-stack direction="block" gap="small">
-                  <s-paragraph tone="subdued">
-                    🔴 Out of Stock
-                  </s-paragraph>
+       <InventoryNeedsAttention
+      products={products.filter(
+        (product) =>
+          product.inventoryStatus === "Out of Stock" ||
+          product.inventoryStatus === "Low Stock"
+      )}
+    />
+  </s-card>
+</s-section>
 
-                  <s-paragraph>{outOfStock}</s-paragraph>
-                </s-stack>
-              </s-box>
+<s-section heading="Product Inventory Details">
+  <s-card>
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Shopify Status</th>
+              <th>Inventory</th>
+              <th>Inventory Status</th>
+</tr>
+  </thead>
 
-              <s-box padding="base" inlineSize="25%">
-                <s-stack direction="block" gap="small">
-                  <s-paragraph tone="subdued">
-                    🟡 Low Stock (1–10)
-                  </s-paragraph>
-
-                  <s-paragraph>{lowStock}</s-paragraph>
-                </s-stack>
-              </s-box>
-
-              <s-box padding="base" inlineSize="25%">
-                <s-stack direction="block" gap="small">
-                  <s-paragraph tone="subdued">
-                    🟢 High Stock (Over 50)
-                  </s-paragraph>
-
-                  <s-paragraph>{highStock}</s-paragraph>
-                </s-stack>
-              </s-box>
-            </s-stack>
-
-            <s-paragraph tone="subdued">
-              Scanned {tracked.toLocaleString()} inventory-tracked products
-              across {pagesFetched} {pagesFetched === 1 ? "page" : "pages"}.
-            </s-paragraph>
-
-            {truncated && (
-              <s-banner tone="warning">
-                <s-paragraph>
-                  The inventory scan reached its safety limit of 25,000
-                  products. The displayed totals may be incomplete.
-                </s-paragraph>
-              </s-banner>
-            )}
-          </s-stack>
-        </s-card>
-      </s-section>
+  <tbody>
+     {products.map((product) => (
+    <tr key={product.id}>
+      <td>{product.title}</td>
+      <td>{product.productStatus}</td>
+      <td>{product.quantity}</td>
+      <td>{product.inventoryStatus}</td>
+    </tr>
+  ))}
+  </tbody>
+</table>
+</div>
+</s-card>
+</s-section>
 
       <s-section heading="Inventory Thresholds">
-        <s-card>
-          <s-stack direction="block" gap="small">
-            <s-paragraph>
-              Out of Stock: zero units or fewer
-            </s-paragraph>
-
-            <s-paragraph>
-              Low Stock: between 1 and 10 units
-            </s-paragraph>
-
-            <s-paragraph>
-              High Stock: more than 50 units
-            </s-paragraph>
-          </s-stack>
-        </s-card>
+<InventoryThresholds />
+       
       </s-section>
     </s-page>
   );
