@@ -4,6 +4,7 @@ import { authenticate } from "../shopify.server";
 import InventorySummary from "../Components/inventory/InventorySummary";
 import InventoryThresholds from "../Components/inventory/InventoryThresholds";
 import InventoryNeedsAttention from "../Components/inventory/InventoryNeedsAttention";
+import InventoryTable from "../Components/inventory/InventoryTable";
 
 const INVENTORY_QUERY = `#graphql
   query GetInventoryProducts($cursor: String) {
@@ -150,29 +151,7 @@ export default function InventoryPage() {
 
 <s-section heading="Product Inventory Details">
   <s-card>
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Shopify Status</th>
-              <th>Inventory</th>
-              <th>Inventory Status</th>
-</tr>
-  </thead>
-
-  <tbody>
-     {products.map((product) => (
-    <tr key={product.id}>
-      <td>{product.title}</td>
-      <td>{product.productStatus}</td>
-      <td>{product.quantity}</td>
-      <td>{product.inventoryStatus}</td>
-    </tr>
-  ))}
-  </tbody>
-</table>
-</div>
+       <InventoryTable products={products} />
 </s-card>
 </s-section>
 
