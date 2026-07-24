@@ -17,7 +17,10 @@ export default function InventorySummary({
                   📦 Inventory Tracked
                 </s-paragraph>
 
-                <s-paragraph>{tracked}</s-paragraph>
+                <s-box paddingInlineStart="base">
+  <s-paragraph>{tracked}</s-paragraph>
+</s-box>
+
               </s-stack>
             </s-box>
 
@@ -27,7 +30,10 @@ export default function InventorySummary({
                   🔴 Out of Stock
                 </s-paragraph>
 
-                <s-paragraph>{outOfStock}</s-paragraph>
+               <s-box paddingInlineStart="base">
+  <s-paragraph>{outOfStock}</s-paragraph>
+</s-box>
+
               </s-stack>
             </s-box>
 
@@ -37,7 +43,9 @@ export default function InventorySummary({
                   🟡 Low Stock (1–10)
                 </s-paragraph>
 
-                <s-paragraph>{lowStock}</s-paragraph>
+              <s-box paddingInlineStart="base">
+  <s-paragraph>{lowStock}</s-paragraph>
+</s-box>
               </s-stack>
             </s-box>
 
@@ -47,7 +55,9 @@ export default function InventorySummary({
                   🟢 High Stock (Over 50)
                 </s-paragraph>
 
-                <s-paragraph>{highStock}</s-paragraph>
+               <s-box paddingInlineStart="base">
+  <s-paragraph>{highStock}</s-paragraph>
+</s-box>
               </s-stack>
             </s-box>
           </s-stack>

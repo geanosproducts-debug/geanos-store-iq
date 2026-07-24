@@ -5,6 +5,7 @@ import InventorySummary from "../Components/inventory/InventorySummary";
 import InventoryThresholds from "../Components/inventory/InventoryThresholds";
 import InventoryNeedsAttention from "../Components/inventory/InventoryNeedsAttention";
 import InventoryTable from "../Components/inventory/InventoryTable";
+import InventoryHealth from "../Components/inventory/InventoryHealth";
 
 const INVENTORY_QUERY = `#graphql
   query GetInventoryProducts($cursor: String) {
@@ -127,6 +128,13 @@ export default function InventoryPage() {
 
   return (
     <s-page heading="Inventory Intelligence Dashboard">
+
+       <s-section heading="Inventory Health">
+    <s-card>
+      <InventoryHealth products={products} />
+    </s-card>
+  </s-section>
+  
       <InventorySummary
       tracked={tracked}
       outOfStock={outOfStock}
