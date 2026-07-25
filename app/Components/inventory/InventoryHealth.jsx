@@ -30,37 +30,46 @@ const healthStatus =
 
   return (
     <s-stack direction="block" gap="small">
-
 <s-heading size="sm">
   Health Score: {healthScore}% — {healthStatus}
 </s-heading>
 
-      <s-paragraph>
-  Inventory Tracked: {totalProducts} products
-</s-paragraph>
-
-     <div
+<div
   style={{
-    display: "grid",
-    gridTemplateColumns: "125px auto",
-    rowGap: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px",
   }}
 >
-  <span>Low Stock:</span>
-  <span>
-    {lowStock} product{lowStock === 1 ? "" : "s"}
-  </span>
+  <div style={{ display: "flex", gap: "24px" }}>
+    <span style={{ width: "140px" }}>Inventory Tracked:</span>
+    <span>
+      {totalProducts} product{totalProducts === 1 ? "" : "s"}
+    </span>
+  </div>
 
-  <span>Out of Stock:</span>
-  <span>
-    {outOfStock} product{outOfStock === 1 ? "" : "s"}
-  </span>
+  <div style={{ display: "flex", gap: "24px" }}>
+    <span style={{ width: "140px" }}>Low Stock:</span>
+    <span>
+      {lowStock} product{lowStock === 1 ? "" : "s"}
+    </span>
+  </div>
 
-  <span>High Stock:</span>
-  <span>
-    {highStock} product{highStock === 1 ? "" : "s"}
-  </span>
+  <div style={{ display: "flex", gap: "24px" }}>
+    <span style={{ width: "140px" }}>Out of Stock:</span>
+    <span>
+      {outOfStock} product{outOfStock === 1 ? "" : "s"}
+    </span>
+  </div>
+
+  <div style={{ display: "flex", gap: "24px" }}>
+    <span style={{ width: "140px" }}>High Stock:</span>
+    <span>
+      {highStock} product{highStock === 1 ? "" : "s"}
+    </span>
+  </div>
 </div>
-    </s-stack>
-  );
+
+</s-stack>
+);
 }

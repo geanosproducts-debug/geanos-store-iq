@@ -7,71 +7,63 @@ export default function InventorySummary({
   truncated,
 }) {
   return (
-    <s-section heading="Inventory Summary">
+    <s-section heading="Inventory Overview">
       <s-card>
         <s-stack direction="block" gap="base">
-          <s-stack direction="inline" gap="base">
-            <s-box padding="base" inlineSize="20%">
-              <s-stack direction="block" gap="small">
-                <s-paragraph tone="subdued">
-                  📦 Inventory Tracked
-                </s-paragraph>
+         <s-section heading="Inventory Overview">
+  <s-card>
+    <s-stack direction="block" gap="base">
 
-                <s-box paddingInlineStart="base">
-  <s-paragraph>{tracked}</s-paragraph>
-</s-box>
+      <div style={{ display: "flex", gap: "24px" }}>
+        <span style={{ width: "220px" }}>
+          📦 Products Tracked:
+        </span>
+        <strong>{tracked}</strong>
+      </div>
 
-              </s-stack>
-            </s-box>
+      <div style={{ display: "flex", gap: "24px" }}>
+        <span style={{ width: "220px" }}>
+          🔴 Out of Stock (0):
+        </span>
+        <strong>{outOfStock}</strong>
+      </div>
 
-            <s-box padding="base" inlineSize="20%">
-              <s-stack direction="block" gap="small">
-                <s-paragraph tone="subdued">
-                  🔴 Out of Stock
-                </s-paragraph>
+      <div style={{ display: "flex", gap: "24px" }}>
+        <span style={{ width: "220px" }}>
+          🟠 Low Stock (1–10):
+        </span>
+        <strong>{lowStock}</strong>
+      </div>
 
-               <s-box paddingInlineStart="base">
-  <s-paragraph>{outOfStock}</s-paragraph>
-</s-box>
+      <div style={{ display: "flex", gap: "24px" }}>
+        <span style={{ width: "220px" }}>
+          🟢 Healthy Stock (Over 50):
+        </span>
+        <strong>{highStock}</strong>
+      </div>
 
-              </s-stack>
-            </s-box>
-
-            <s-box padding="base" inlineSize="20%">
-              <s-stack direction="block" gap="small">
-                <s-paragraph tone="subdued">
-                  🟡 Low Stock (1–10)
-                </s-paragraph>
-
-              <s-box paddingInlineStart="base">
-  <s-paragraph>{lowStock}</s-paragraph>
-</s-box>
-              </s-stack>
-            </s-box>
-
-            <s-box padding="base" inlineSize="20%">
-              <s-stack direction="block" gap="small">
-                <s-paragraph tone="subdued">
-                  🟢 High Stock (Over 50)
-                </s-paragraph>
-
-               <s-box paddingInlineStart="base">
-  <s-paragraph>{highStock}</s-paragraph>
-</s-box>
-              </s-stack>
-            </s-box>
-          </s-stack>
-
-          <s-paragraph tone="subdued">
-            Scanned {tracked.toLocaleString()} inventory-tracked products across{" "}
-            {pagesFetched} {pagesFetched === 1 ? "page" : "pages"}.
+      {truncated && (
+        <s-banner tone="warning">
+          <s-paragraph>
+            Inventory scan limit reached.
+            <br />
+            Only the first 25,000 products could be analysed.
+            The figures shown above may not represent your complete inventory.
           </s-paragraph>
+        </s-banner>
+      )}
 
+    </s-stack>
+  </s-card>
+</s-section>
+           
           {truncated && (
             <s-banner tone="warning">
               <s-paragraph>
-                The inventory scan reached its safety limit of 25,000 products.
-                The displayed totals may be incomplete.
+               Inventory scan limit reached.
+
+Only the first 25,000 products could be analysed.
+The figures shown above may not represent your complete inventory.
               </s-paragraph>
             </s-banner>
           )}
