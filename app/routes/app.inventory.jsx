@@ -132,10 +132,11 @@ export default function InventoryPage() {
        <s-section heading="Inventory Health">
     <s-card>
       <InventoryHealth products={products} />
-    </s-card>
-  </s-section>
-  
-      <InventorySummary
+      </s-card>
+</s-section>
+   <s-section heading="Inventory Summary">
+  <s-card>
+    <InventorySummary
       tracked={tracked}
       outOfStock={outOfStock}
       lowStock={lowStock}
@@ -143,6 +144,8 @@ export default function InventoryPage() {
       pagesFetched={pagesFetched}
       truncated={truncated}
     />
+  </s-card>
+</s-section>
 
     <s-section heading="Needs Attention (3)">
   <s-card>
@@ -163,14 +166,14 @@ export default function InventoryPage() {
 </s-card>
 </s-section>
 
-      <s-section heading="Inventory Thresholds">
-<InventoryThresholds />
-       
-      </s-section>
-    </s-page>
-  );
+   <s-section heading="Inventory Thresholds">
+      <s-card>
+        <InventoryThresholds />
+      </s-card>
+    </s-section>
+  </s-page>
+);
 }
-
 export function ErrorBoundary() {
   return boundary.error(useRouteError());
 }

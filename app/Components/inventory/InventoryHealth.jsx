@@ -19,19 +19,48 @@
     totalProducts === 0
       ? 100
       : Math.round((healthyProducts / totalProducts) * 100);
+const healthStatus =
+  healthScore >= 90
+    ? "Excellent"
+    : healthScore >= 75
+      ? "Good"
+      : healthScore >= 50
+        ? "Needs Attention"
+        : "Critical";
 
   return (
     <s-stack direction="block" gap="small">
 
-      <s-paragraph>Health Score: {healthScore}%</s-paragraph>
+<s-heading size="sm">
+  Health Score: {healthScore}% — {healthStatus}
+</s-heading>
 
-      <s-paragraph>Products Tracked: {totalProducts}</s-paragraph>
+      <s-paragraph>
+  Inventory Tracked: {totalProducts} products
+</s-paragraph>
 
-      <s-paragraph>Low Stock: {lowStock}</s-paragraph>
+     <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "125px auto",
+    rowGap: "14px",
+  }}
+>
+  <span>Low Stock:</span>
+  <span>
+    {lowStock} product{lowStock === 1 ? "" : "s"}
+  </span>
 
-      <s-paragraph>Out of Stock: {outOfStock}</s-paragraph>
+  <span>Out of Stock:</span>
+  <span>
+    {outOfStock} product{outOfStock === 1 ? "" : "s"}
+  </span>
 
-      <s-paragraph>High Stock: {highStock}</s-paragraph>
+  <span>High Stock:</span>
+  <span>
+    {highStock} product{highStock === 1 ? "" : "s"}
+  </span>
+</div>
     </s-stack>
   );
 }
