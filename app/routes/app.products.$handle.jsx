@@ -54,24 +54,30 @@ export default function ProductIntelligencePage() {
   return (
   <s-page heading="Product Intelligence">
     <s-section heading="Product Overview">
-      <s-card>
-       <s-stack direction="block">
-  <s-heading>{product.title}</s-heading>
-  {product.featuredImage && (
-  <img
-    src={product.featuredImage.url}
-    alt={product.featuredImage.altText || product.title}
-       style={{    
-        width: "220px",
-      height: "220px",
-      objectFit: "cover",
-      borderRadius: "8px",
-    }}
-  />
-)}
+      <s-card padding="base">
+     <s-grid gridTemplateColumns="280px 1fr" gap="base">
+  <div>
+         <s-stack direction="block" gap="base">
+    <s-heading size="large">{product.title}</s-heading>
 
+    {product.featuredImage && (
+      <img
+        src={product.featuredImage.url}
+        alt={product.featuredImage.altText || product.title}
+        style={{
+          width: "280px",
+          height: "280px",
+          objectFit: "cover",
+          borderRadius: "8px",
+        }}
+      />
+    )}
+  </s-stack>
+</div>
+<s-stack direction="block" gap="base">
+  <s-heading size="medium">Product Details</s-heading>
   <s-text>
-    <strong>Vendor:</strong> {product.vendor}
+   <strong>Vendor:</strong>&nbsp;&nbsp;{product.vendor}
   </s-text>
 
   <s-text>
@@ -80,7 +86,9 @@ export default function ProductIntelligencePage() {
 
   <s-text>
     <strong>Status:</strong> {product.status}
-  </s-text>  <s-text>
+  </s-text>
+
+<s-text>
     <strong>Handle:</strong> {product.handle}
   </s-text>
 
@@ -107,12 +115,13 @@ export default function ProductIntelligencePage() {
     {product.priceRangeV2.minVariantPrice.currencyCode}
   </s-text>
 </s-stack>
+</s-grid>
  
       </s-card>
     </s-section>
 
     <s-section heading="Inventory Overview">
-  <s-card>
+ <s-card padding="base">
     <s-stack direction="block">
       <s-text>
         <strong>Current Inventory:</strong> {product.totalInventory}
