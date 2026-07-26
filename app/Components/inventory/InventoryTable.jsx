@@ -1,4 +1,7 @@
+import { Link } from "react-router";
+
 export default function InventoryTable({ products }) {
+
   return (
     <div style={{ overflowX: "auto" }}>
       <table
@@ -10,20 +13,28 @@ export default function InventoryTable({ products }) {
 >
         <thead>
           <tr>
-            <th>Product</th>
-            <th>Shopify Status</th>
-            <th>Inventory</th>
-            <th>Inventory Status</th>
+          <th>Product</th>
+<th>Vendor</th>
+<th>Product Type</th>
+<th>Shopify Status</th>
+<th>Inventory</th>
+<th>Inventory Status</th>
           </tr>
         </thead>
 
         <tbody>
           {products.map((product) => (
             <tr key={product.id}>
-              <td>{product.title}</td>
-              <td>{product.productStatus}</td>
-              <td>{product.quantity}</td>
-              <td>{product.inventoryStatus}</td>
+              <td>
+  <Link to={`/app/products/${product.handle}`}>
+    {product.title}
+  </Link>
+</td>
+<td>{product.vendor}</td>
+<td>{product.productType || "Not assigned"}</td>
+<td>{product.productStatus}</td>
+<td>{product.quantity}</td>
+<td>{product.inventoryStatus}</td>
             </tr>
           ))}
         </tbody>

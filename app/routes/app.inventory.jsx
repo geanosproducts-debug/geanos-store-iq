@@ -14,12 +14,18 @@ const INVENTORY_QUERY = `#graphql
       after: $cursor
       query: "tracks_inventory:true"
     ) {
-     nodes {
+    nodes {
   id
   title
   status
   totalInventory
-      }
+  vendor
+  productType
+  tags
+  handle
+  createdAt
+  updatedAt
+}
       pageInfo {
         hasNextPage
         endCursor
@@ -85,12 +91,18 @@ async function fetchInventoryStatistics(admin) {
   }
 
   products.push({
-    id: product.id,
-    title: product.title,
-    productStatus: product.status,
-    quantity,
-    inventoryStatus,
-  });
+  id: product.id,
+  title: product.title,
+  productStatus: product.status,
+  quantity,
+  inventoryStatus,
+  vendor: product.vendor,
+  productType: product.productType,
+  tags: product.tags,
+  handle: product.handle,
+  createdAt: product.createdAt,
+  updatedAt: product.updatedAt,
+});
 }
 
     pagesFetched += 1;
