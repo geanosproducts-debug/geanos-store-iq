@@ -50,6 +50,13 @@ export async function loader({ request, params }) {
 
 export default function ProductIntelligencePage() {
   const product = useLoaderData();
+ 
+  const numericId = product.id.split("/").pop();
+const shopifyAdminUrl = `shopify://admin/products/${numericId}`;
+const shopifyInventoryUrl =
+  "shopify://admin/products/inventory?location_id=82779308193";
+ const shopifyArchivedProductsUrl =
+  "https://admin.shopify.com/store/geanosgiftwarenovelties/products?savedViewId=1216095092951";
 
   return (
   <s-page heading="Product Intelligence">
@@ -74,8 +81,30 @@ export default function ProductIntelligencePage() {
     )}
   </s-stack>
 </div>
-<s-stack direction="block" gap="base">
+<s-stack direction="block" gap="tight">
   <s-heading size="medium">Product Details</s-heading>
+ <s-stack direction="inline" gap="base" wrap>
+  <s-button href={shopifyAdminUrl} target="_top">
+    🖊️ Edit Product
+  </s-button>
+
+  <s-button href={shopifyAdminUrl} target="_top">
+    🛍️ Open in Shopify
+  </s-button>
+
+  <s-button href={shopifyInventoryUrl} target="_top">
+    📦 View Inventory
+  </s-button>
+
+  <s-button href={shopifyArchivedProductsUrl} target="_top">
+    🗄️ Product Archive
+  </s-button>
+
+ <s-button href="/app/duplicated-products">
+  🔍 Duplicated Products
+</s-button>
+
+</s-stack>
   <s-text>
    <strong>Vendor:</strong>&nbsp;&nbsp;{product.vendor}
   </s-text>
@@ -84,9 +113,31 @@ export default function ProductIntelligencePage() {
     <strong>Product Type:</strong> {product.productType || "Not assigned"}
   </s-text>
 
-  <s-text>
-    <strong>Status:</strong> {product.status}
-  </s-text>
+ <s-text>
+  <strong>Status:</strong>{" "}
+  <span
+    style={{
+      display: "inline-block",
+      padding: "4px 10px",
+      borderRadius: "999px",
+      fontWeight: "600",
+      backgroundColor:
+        product.status === "ACTIVE"
+          ? "#d1fae5"
+          : product.status === "DRAFT"
+          ? "#fef3c7"
+          : "#fee2e2",
+      color:
+        product.status === "ACTIVE"
+          ? "#065f46"
+          : product.status === "DRAFT"
+          ? "#92400e"
+          : "#991b1b",
+    }}
+  >
+    {product.status}
+  </span>
+</s-text>
 
 <s-text>
     <strong>Handle:</strong> {product.handle}
@@ -128,15 +179,40 @@ export default function ProductIntelligencePage() {
       </s-text>
 
       <s-text>
-        <strong>Stock Health:</strong>{" "}
-        {product.totalInventory <= 0
-          ? "🔴 Out of Stock"
+  <strong>Stock Health:</strong>{" "}
+  <span
+    style={{
+      display: "inline-block",
+      padding: "4px 10px",
+      borderRadius: "999px",
+      fontWeight: "600",
+      backgroundColor:
+        product.totalInventory <= 0
+          ? "#fee2e2"
           : product.totalInventory <= 10
-          ? "🟠 Low Stock"
+          ? "#ffedd5"
           : product.totalInventory >= 50
-          ? "🟢 Healthy Stock"
-          : "🟡 Normal Stock"}
-      </s-text>
+          ? "#d1fae5"
+          : "#fef3c7",
+      color:
+        product.totalInventory <= 0
+          ? "#991b1b"
+          : product.totalInventory <= 10
+          ? "#9a3412"
+          : product.totalInventory >= 50
+          ? "#065f46"
+          : "#92400e",
+    }}
+  >
+    {product.totalInventory <= 0
+      ? "Out of Stock"
+      : product.totalInventory <= 10
+      ? "Low Stock"
+      : product.totalInventory >= 50
+      ? "Healthy Stock"
+      : "Normal Stock"}
+  </span>
+</s-text>
     </s-stack>
   </s-card>
 </s-section>
