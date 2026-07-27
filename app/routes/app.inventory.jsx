@@ -156,7 +156,13 @@ export default function InventoryPage() {
       pagesFetched={pagesFetched}
       truncated={truncated}
     />
-  </s-card>
+   </s-card>
+
+   <s-card>
+  <s-button href="/app/duplicated-products">
+    🔍 Duplicated Products
+  </s-button>
+</s-card>
 </s-section>
 
     <s-section heading="Needs Attention (3)">
