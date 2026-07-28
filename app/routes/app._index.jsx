@@ -167,7 +167,7 @@ export default function Index() {
 
   return (
     <s-page heading="GEANOS Store IQ">
-      <s-button slot="primary-action" onClick={generateProduct}>
+     <s-button slot="primary-action" href="/app/inventory">
         Open GEANOS Store IQ
       </s-button>
 
