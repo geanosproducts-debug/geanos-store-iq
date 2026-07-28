@@ -1,5 +1,4 @@
-import { render } from 'preact';
-import { useState, useEffect, useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useState } from "react";
 
 const MAX_PRODUCTS = 2000;
 const PAGE_SIZE = 100;
@@ -140,7 +139,7 @@ function Extension() {
 
     try {
       while (hasNext && collected.length < MAX_PRODUCTS) {
-        const { data, errors } = await shopify.query(LIST_PRODUCTS_QUERY, {
+       const { data, errors }: any = await (shopify as any).query(LIST_PRODUCTS_QUERY, {
           variables: { first: PAGE_SIZE, after: cursor },
         });
 
@@ -294,7 +293,7 @@ function Extension() {
     setActionError(null);
 
     try {
-      const { data, errors } = await shopify.query(ARCHIVE_PRODUCT_MUTATION, {
+    const { data, errors }: any = await (shopify as any).query(ARCHIVE_PRODUCT_MUTATION, {
         variables: { input: { id: target.id, status: 'ARCHIVED' } },
       });
 
@@ -569,4 +568,4 @@ function Extension() {
   );
 }
 
-export default (): void => render(<Extension />, document.body);
+export default Extension;
