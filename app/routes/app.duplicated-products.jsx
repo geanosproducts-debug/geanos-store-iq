@@ -446,7 +446,11 @@ command="--show"
   This will change the product status in Shopify to Archived.
 </s-paragraph>
 
-<s-button onClick={() => setSelectedProduct(null)}>
+<s-button
+  commandFor="archive-product-modal"
+  command="--hide"
+  onClick={() => setSelectedProduct(null)}
+>
   Cancel
 </s-button>
 <s-button
