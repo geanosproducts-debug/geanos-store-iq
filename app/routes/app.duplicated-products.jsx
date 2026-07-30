@@ -315,14 +315,7 @@ useEffect(() => {
 
   return (
   <s-page heading="Duplicate Product Finder">
-    <s-button
-      slot="primary-action"
-      onClick={() => revalidator.revalidate()}
-      loading={revalidator.state !== "idle"}
-    >
-      Rescan products
-    </s-button>
-
+   
     <s-section heading="Duplicate Summary">
       <s-stack direction="block" gap="base">
         <s-paragraph>
@@ -363,6 +356,17 @@ useEffect(() => {
   </s-stack>
   </s-section>
 <s-section heading="Duplicate Results">
+  <s-stack direction="inline" gap="base">
+ <s-button variant="primary"
+    onClick={() => revalidator.revalidate()}
+    loading={revalidator.state !== "idle"}
+  >
+    Rescan Products
+  </s-button>
+  <s-button variant="primary" href="/app/products">
+  Edit Products
+</s-button>
+</s-stack>
   <s-paragraph>
     Found {displayedGroups.length} matching group
     {displayedGroups.length === 1 ? "" : "s"} using{" "}
