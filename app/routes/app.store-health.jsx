@@ -9,24 +9,46 @@ export const loader = async ({ request }) => {
   };
   export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
-  const response = await admin.graphql(`
-  #graphql
-  query StoreHealthProducts {
-    products(first: 250) {
-      nodes {
-        id
-        title
-        handle
-        seo {
-          title
-          description
+  let cursor = null;
+  const allProducts = [];
+  let hasNextPage = true;
+  while (hasNextPage) {
+  const response = await admin.graphql(
+    `#graphql
+      query StoreHealthProducts($cursor: String) {
+        products(first: 250, after: $cursor) {
+          nodes {
+            id
+            title
+            handle
+            seo {
+              title
+              description
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
       }
-    }
-  }
-`);
-const responseJson = await response.json();
-const products = responseJson.data.products.nodes;
+    `,
+    {
+      variables: {
+        cursor,
+      },
+    },
+  );
+
+  const responseJson = await response.json();
+  const productPage = responseJson.data.products;
+
+  allProducts.push(...productPage.nodes);
+  hasNextPage = productPage.pageInfo.hasNextPage;
+  cursor = productPage.pageInfo.endCursor;
+}
+
+const products = allProducts;
 const missingSeoTitles = products.filter(
   (product) => !product.seo?.title?.trim(),
 );
