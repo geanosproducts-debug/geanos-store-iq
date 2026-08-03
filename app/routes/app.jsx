@@ -19,6 +19,7 @@ export default function App() {
    <s-link href="/app" rel="home">Dashboard</s-link>
    <s-link href="/app/inventory">Inventory Intelligence</s-link>  
    <s-link href="/app/store-health">Store Health & SEO Bot</s-link> 
+   <s-link href="/app/understanding-products">Understanding the Products</s-link>
     <s-link href="/app/additional">Additional page</s-link>  
     </s-app-nav>
       <Outlet />
