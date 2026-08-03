@@ -16,7 +16,7 @@ export const loader = async ({ request }) => {
   const response = await admin.graphql(
     `#graphql
       query StoreHealthProducts($cursor: String) {
-        products(first: 250, after: $cursor) {
+      products(first: 50, after: $cursor) {
           nodes {
             id
             title
@@ -25,6 +25,12 @@ export const loader = async ({ request }) => {
               title
               description
             }
+              images(first: 10) {
+  nodes {
+    id
+    altText
+  }
+}
           }
           pageInfo {
             hasNextPage
@@ -61,9 +67,26 @@ const missingSeo = products.filter(
     !product.seo?.title?.trim() || !product.seo?.description?.trim(),
 );
 
+const totalImagesChecked = products.reduce(
+  (total, product) => total + product.images.nodes.length,
+  0,
+);
+const imagesMissingAltText = products.flatMap((product) =>
+  product.images.nodes
+    .filter((image) => !image.altText?.trim())
+    .map((image) => ({
+      imageId: image.id,
+      productId: product.id,
+      productTitle: product.title,
+      productHandle: product.handle,
+    })),
+);
  return {
   scanStarted: true,
   totalProducts: products.length,
+  totalImagesChecked,
+  imagesMissingAltTextCount: imagesMissingAltText.length,
+  imagesMissingAltText,
   missingSeoDescriptionCount: missingSeoDescriptions.length,
   missingSeoTitleCount: missingSeoTitles.length,
   missingSeoProducts: missingSeo.map((product) => ({
@@ -123,6 +146,11 @@ export default function StoreHealthPage() {
   ? `Scan complete: ${fetcher.data.totalProducts} products checked. ${fetcher.data.missingSeoTitleCount} are missing SEO titles. ${fetcher.data.missingSeoDescriptionCount} are missing meta descriptions. ${fetcher.data.missingSeoCount} products need SEO attention overall.`
   : "The Store Health Bot is ready for its first scanning tools."}
         </s-paragraph>
+        {fetcher.data?.scanStarted && (
+  <s-paragraph>
+ {fetcher.data.totalImagesChecked} product images checked. {fetcher.data.imagesMissingAltTextCount} are missing alt text.
+  </s-paragraph>
+)}
       </s-section>
       {fetcher.data?.missingSeoProducts?.length > 0 && (
   <s-section heading="Products Needing SEO Attention">
