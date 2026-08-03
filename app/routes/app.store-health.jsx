@@ -22,6 +22,9 @@ export const loader = async ({ request }) => {
             id
             title
             handle
+            descriptionHtml
+            vendor
+            productType
             seo {
               title
               description
@@ -96,6 +99,24 @@ const imagesMissingAltText = products.flatMap((product) =>
       productHandle: product.handle,
     })),
 );
+const productTitleCounts = products.reduce((counts, product) => {
+  const normalisedTitle = product.title.trim().toLowerCase();
+
+  counts[normalisedTitle] = (counts[normalisedTitle] || 0) + 1;
+
+  return counts;
+}, {});
+const duplicateTitleProducts = products.filter(
+  (product) =>
+    productTitleCounts[product.title.trim().toLowerCase()] > 1,
+);
+const incompleteProducts = products.filter(
+  (product) =>
+    !product.descriptionHtml?.replace(/<[^>]*>/g, "").trim() ||
+    !product.vendor?.trim() ||
+    !product.productType?.trim() ||
+    product.images.nodes.length === 0,
+);
  return {
   scanStarted: true,
   storeUrl,
@@ -103,6 +124,23 @@ const imagesMissingAltText = products.flatMap((product) =>
   sitemapStatus: sitemapResponse.status,
   robotsAvailable,
   totalProducts: products.length,
+  duplicateTitleCount: duplicateTitleProducts.length,
+  duplicateTitleProducts: duplicateTitleProducts.map((product) => ({
+  id: product.id,
+  title: product.title,
+  handle: product.handle,
+})),
+incompleteProductCount: incompleteProducts.length,
+incompleteProducts: incompleteProducts.map((product) => ({
+  id: product.id,
+  title: product.title,
+  handle: product.handle,
+  missingDescription:
+    !product.descriptionHtml?.replace(/<[^>]*>/g, "").trim(),
+  missingVendor: !product.vendor?.trim(),
+  missingProductType: !product.productType?.trim(),
+  missingImage: product.images.nodes.length === 0,
+})),
   robotsStatus: robotsResponse.status,
   totalImagesChecked,
   imagesMissingAltTextCount: imagesMissingAltText.length,
@@ -186,6 +224,16 @@ export default function StoreHealthPage() {
    Robots.txt: {fetcher.data.robotsAvailable ? "Available" : "Not available"} (HTTP {fetcher.data.robotsStatus})
   </s-paragraph>
 )}
+{fetcher.data?.scanStarted && (
+  <s-paragraph>
+    Products with duplicate titles: {fetcher.data.duplicateTitleCount}
+  </s-paragraph>
+)}
+{fetcher.data?.scanStarted && (
+  <s-paragraph>
+    Products with incomplete data: {fetcher.data.incompleteProductCount}
+  </s-paragraph>
+)}
       </s-section>
       {fetcher.data?.missingSeoProducts?.length > 0 && (
   <s-section heading="Products Needing SEO Attention">
@@ -196,6 +244,35 @@ export default function StoreHealthPage() {
   {product.missingTitle && " — Missing SEO title"}
   {product.missingDescription && " — Missing meta description"}
 </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
+{fetcher.data?.duplicateTitleProducts?.length > 0 && (
+  <s-section heading="Products With Duplicate Titles">
+    <s-stack direction="block" gap="base">
+      {fetcher.data.duplicateTitleProducts.map((product) => (
+        <s-link key={product.id} href={`/app/products/${product.handle}`}>
+          {product.title}
+        </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
+{fetcher.data?.incompleteProducts?.length > 0 && (
+  <s-section heading="Products With Incomplete Data">
+    <s-stack direction="block" gap="base">
+      {fetcher.data.incompleteProducts.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title}
+          {product.missingDescription && " — Missing description"}
+          {product.missingVendor && " — Missing vendor"}
+          {product.missingProductType && " — Missing product type"}
+          {product.missingImage && " — Missing product image"}
+        </s-link>
       ))}
     </s-stack>
   </s-section>
