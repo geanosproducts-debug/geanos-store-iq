@@ -72,6 +72,7 @@ const [sitemapResponse, robotsResponse] = await Promise.all([
   ]);
   const sitemapAvailable = sitemapResponse.ok;
   const robotsAvailable = robotsResponse.ok;
+  const indexingReady = sitemapAvailable && robotsAvailable;
 const products = allProducts;
 const missingSeoTitles = products.filter(
   (product) => !product.seo?.title?.trim(),
@@ -123,6 +124,7 @@ const incompleteProducts = products.filter(
   sitemapAvailable,
   sitemapStatus: sitemapResponse.status,
   robotsAvailable,
+  indexingReady,
   totalProducts: products.length,
   duplicateTitleCount: duplicateTitleProducts.length,
   duplicateTitleProducts: duplicateTitleProducts.map((product) => ({
@@ -222,6 +224,12 @@ export default function StoreHealthPage() {
 {fetcher.data?.scanStarted && (
   <s-paragraph>
    Robots.txt: {fetcher.data.robotsAvailable ? "Available" : "Not available"} (HTTP {fetcher.data.robotsStatus})
+  </s-paragraph>
+)}
+{fetcher.data?.scanStarted && (
+  <s-paragraph>
+    Search-engine indexing readiness:{" "}
+    {fetcher.data.indexingReady ? "Ready" : "Not ready"}
   </s-paragraph>
 )}
 {fetcher.data?.scanStarted && (
