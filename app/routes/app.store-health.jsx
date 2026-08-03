@@ -12,6 +12,7 @@ export const loader = async ({ request }) => {
   let cursor = null;
   const allProducts = [];
   let hasNextPage = true;
+  let storeUrl = null;
   while (hasNextPage) {
   const response = await admin.graphql(
     `#graphql
@@ -37,6 +38,11 @@ export const loader = async ({ request }) => {
             endCursor
           }
         }
+          shop {
+  primaryDomain {
+    url
+  }
+}
       }
     `,
     {
@@ -47,6 +53,7 @@ export const loader = async ({ request }) => {
   );
 
   const responseJson = await response.json();
+  storeUrl = responseJson.data.shop.primaryDomain.url;
   const productPage = responseJson.data.products;
 
   allProducts.push(...productPage.nodes);
@@ -54,6 +61,14 @@ export const loader = async ({ request }) => {
   cursor = productPage.pageInfo.endCursor;
 }
 
+const sitemapUrl = new URL("/sitemap.xml", storeUrl).toString();
+const robotsUrl = new URL("/robots.txt", storeUrl).toString();
+const [sitemapResponse, robotsResponse] = await Promise.all([
+  fetch(sitemapUrl),
+  fetch(robotsUrl),
+  ]);
+  const sitemapAvailable = sitemapResponse.ok;
+  const robotsAvailable = robotsResponse.ok;
 const products = allProducts;
 const missingSeoTitles = products.filter(
   (product) => !product.seo?.title?.trim(),
@@ -83,7 +98,12 @@ const imagesMissingAltText = products.flatMap((product) =>
 );
  return {
   scanStarted: true,
+  storeUrl,
+  sitemapAvailable,
+  sitemapStatus: sitemapResponse.status,
+  robotsAvailable,
   totalProducts: products.length,
+  robotsStatus: robotsResponse.status,
   totalImagesChecked,
   imagesMissingAltTextCount: imagesMissingAltText.length,
   imagesMissingAltText,
@@ -149,6 +169,21 @@ export default function StoreHealthPage() {
         {fetcher.data?.scanStarted && (
   <s-paragraph>
  {fetcher.data.totalImagesChecked} product images checked. {fetcher.data.imagesMissingAltTextCount} are missing alt text.
+  </s-paragraph>
+)}
+{fetcher.data?.scanStarted && (
+  <s-paragraph>
+    Checked store: {fetcher.data.storeUrl}
+  </s-paragraph>
+)}
+{fetcher.data?.scanStarted && (
+  <s-paragraph>
+  Sitemap: {fetcher.data.sitemapAvailable ? "Available" : "Not available"} (HTTP {fetcher.data.sitemapStatus})
+</s-paragraph>
+)}
+{fetcher.data?.scanStarted && (
+  <s-paragraph>
+   Robots.txt: {fetcher.data.robotsAvailable ? "Available" : "Not available"} (HTTP {fetcher.data.robotsStatus})
   </s-paragraph>
 )}
       </s-section>
