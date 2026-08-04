@@ -500,7 +500,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 {highStockProducts.length > 0 && (
   <s-section heading="Active Products With High Stock">
     <s-stack direction="block" gap="base">
-      {highStockProducts.map((product) => (
+   {[...highStockProducts]
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
         <s-link
           key={product.id}
           href={`/app/products/${product.handle}`}
