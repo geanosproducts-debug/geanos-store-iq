@@ -66,9 +66,24 @@ const productsByType = products.reduce((counts, product) => {
 
   return counts;
 }, {});
+const ninetyDaysAgo = new Date();
+ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+const staleProducts = products.filter(
+  (product) => new Date(product.updatedAt) < ninetyDaysAgo,
+);
+const recentlyCreatedProducts = products.filter(
+  (product) => new Date(product.createdAt) >= ninetyDaysAgo,
+);
+const totalActiveInventory = products
+  .filter((product) => product.status === "ACTIVE")
+  .reduce((total, product) => total + (product.totalInventory ?? 0), 0);
     const activeProductCount = products.filter(
   (product) => product.status === "ACTIVE",
 ).length;
+const averageActiveInventory =
+  activeProductCount > 0
+    ? Math.round((totalActiveInventory / activeProductCount) * 10) / 10
+    : 0;
 const draftProductCount = products.filter(
   (product) => product.status === "DRAFT",
 ).length;
@@ -126,7 +141,20 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 <s-paragraph>
   Active products adequately stocked: {adequatelyStockedProductCount}
 </s-paragraph>
+<s-paragraph>
+  Products not updated in 90 days: {staleProducts.length}
+</s-paragraph>
+<s-paragraph>
+  Products created in the last 90 days: {recentlyCreatedProducts.length}
+</s-paragraph>
+<s-paragraph>
+  Average inventory per active product: {averageActiveInventory}
+</s-paragraph>
+<s-paragraph>
+  Total active inventory units: {totalActiveInventory}
+</s-paragraph>
       </s-section>
+      
       <s-section heading="Products by Vendor">
   <s-stack direction="block" gap="base">
     {Object.entries(productsByVendor).map(([vendor, count]) => (
