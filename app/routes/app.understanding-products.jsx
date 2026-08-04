@@ -140,6 +140,11 @@ const averageSellingProducts = productsWithSales.filter(
   (product) =>
     (unitsSoldByProduct[product.id] || 0) === averageUnitsSold,
 );
+const reorderProducts = productsWithSales.filter((product) => {
+  const unitsSold = unitsSoldByProduct[product.id] || 0;
+
+  return product.totalInventory <= unitsSold;
+});
     const vendorCount = new Set(
   products.map((product) => product.vendor).filter(Boolean),
 ).size;
@@ -274,6 +279,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 <s-paragraph>
   Above-average selling products: {fastSellingProducts.length}
 </s-paragraph>
+<s-paragraph>
+  Products recommended for reorder: {reorderProducts.length}
+</s-paragraph>
 </s-section>
       
       <s-section heading="Products by Vendor">
@@ -293,6 +301,7 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
       </s-paragraph>
     ))}
   </s-stack>
+
 </s-section>
 {productsWithStockButNoSales.length > 0 && (
   <s-section heading="Active Products With Stock But No Sales">
@@ -308,6 +317,73 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
     </s-stack>
   </s-section>
 )}
+
+{slowSellingProducts.length > 0 && (
+  <s-section heading="Below-Average Selling Products">
+    <s-stack direction="block" gap="base">
+      {slowSellingProducts.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title} — Units sold:{" "}
+          {unitsSoldByProduct[product.id] || 0} — Inventory:{" "}
+          {product.totalInventory}
+        </s-link>
+      ))}
+    </s-stack>
+
+  </s-section>
+)}{averageSellingProducts.length > 0 && (
+  <s-section heading="Average-Selling Products">
+    <s-stack direction="block" gap="base">
+      {averageSellingProducts.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title} — Units sold:{" "}
+          {unitsSoldByProduct[product.id] || 0} — Inventory:{" "}
+          {product.totalInventory}
+        </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
+
+{fastSellingProducts.length > 0 && (
+  <s-section heading="Above-Average Selling Products">
+    <s-stack direction="block" gap="base">
+      {fastSellingProducts.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title} — Units sold:{" "}
+          {unitsSoldByProduct[product.id] || 0} — Inventory:{" "}
+          {product.totalInventory}
+        </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
+{reorderProducts.length > 0 && (
+  <s-section heading="Products Recommended for Reorder">
+    <s-stack direction="block" gap="base">
+      {reorderProducts.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title} — Units sold:{" "}
+          {unitsSoldByProduct[product.id] || 0} — Inventory:{" "}
+          {product.totalInventory}
+        </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
+
       {outOfStockProducts.length > 0 && (
   <s-section heading="Active Products Out of Stock">
     <s-stack direction="block" gap="base">
