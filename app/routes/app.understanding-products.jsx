@@ -95,11 +95,50 @@ export default function UnderstandingProductsPage() {
     .map((lineItem) => lineItem.product?.id)
     .filter(Boolean),
 );
+const unitsSoldByProduct = orders.reduce((totals, order) => {
+  order.lineItems.nodes.forEach((lineItem) => {
+    const productId = lineItem.product?.id;
+
+    if (productId) {
+      totals[productId] =
+        (totals[productId] || 0) + lineItem.quantity;
+    }
+  });
+
+  return totals;
+}, {});
 const productsWithStockButNoSales = products.filter(
   (product) =>
     product.status === "ACTIVE" &&
     product.totalInventory > 0 &&
     !soldProductIds.has(product.id),
+);
+const productsWithSales = products.filter(
+  (product) =>
+    product.status === "ACTIVE" &&
+    (unitsSoldByProduct[product.id] || 0) > 0,
+);
+const totalUnitsSold = productsWithSales.reduce(
+  (total, product) =>
+    total + (unitsSoldByProduct[product.id] || 0),
+  0,
+);
+
+const averageUnitsSold =
+  productsWithSales.length > 0
+    ? Math.round((totalUnitsSold / productsWithSales.length) * 10) / 10
+    : 0;
+    const slowSellingProducts = productsWithSales.filter(
+  (product) =>
+    (unitsSoldByProduct[product.id] || 0) < averageUnitsSold,
+);
+const fastSellingProducts = productsWithSales.filter(
+  (product) =>
+    (unitsSoldByProduct[product.id] || 0) > averageUnitsSold,
+);
+const averageSellingProducts = productsWithSales.filter(
+  (product) =>
+    (unitsSoldByProduct[product.id] || 0) === averageUnitsSold,
 );
     const vendorCount = new Set(
   products.map((product) => product.vendor).filter(Boolean),
@@ -219,6 +258,21 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 <s-paragraph>
   Active products with stock but no sales:{" "}
   {productsWithStockButNoSales.length}
+</s-paragraph>
+<s-paragraph>
+  Total units sold in the last 60 days: {totalUnitsSold}
+</s-paragraph>
+<s-paragraph>
+  Average units sold per selling product: {averageUnitsSold}
+</s-paragraph>
+<s-paragraph>
+  Below-average selling products: {slowSellingProducts.length}
+</s-paragraph>
+<s-paragraph>
+  Average-selling products: {averageSellingProducts.length}
+</s-paragraph>
+<s-paragraph>
+  Above-average selling products: {fastSellingProducts.length}
 </s-paragraph>
 </s-section>
       
