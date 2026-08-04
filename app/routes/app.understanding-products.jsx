@@ -451,7 +451,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
       {outOfStockProducts.length > 0 && (
   <s-section heading="Active Products Out of Stock">
     <s-stack direction="block" gap="base">
-      {outOfStockProducts.map((product) => (
+      {[...outOfStockProducts]
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
         <s-link
           key={product.id}
           href={`/app/products/${product.handle}`}
@@ -465,7 +467,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 {lowStockProducts.length > 0 && (
   <s-section heading="Active Products With Low Stock">
     <s-stack direction="block" gap="base">
-      {lowStockProducts.map((product) => (
+    {[...lowStockProducts]
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
         <s-link
           key={product.id}
           href={`/app/products/${product.handle}`}
@@ -479,7 +483,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 {adequatelyStockedProducts.length > 0 && (
   <s-section heading="Active Products Adequately Stocked">
     <s-stack direction="block" gap="base">
-      {adequatelyStockedProducts.map((product) => (
+      {[...adequatelyStockedProducts]
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
         <s-link
           key={product.id}
           href={`/app/products/${product.handle}`}
