@@ -251,72 +251,93 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
           Analyse your Shopify products to understand their performance,
           strengths, weaknesses, and opportunities.
         </s-paragraph>
-        <s-paragraph>
-  Total products analysed: {products.length}
+       <s-paragraph>
+  Above-average selling products: {fastSellingProducts.length}
 </s-paragraph>
-<s-paragraph>
-  Product vendors represented: {vendorCount}
-</s-paragraph>
-<s-paragraph>
-  Product types represented: {productTypeCount}
-</s-paragraph>
+
 <s-paragraph>
   Active products: {activeProductCount}
 </s-paragraph>
-<s-paragraph>
-  Draft products: {draftProductCount}
-</s-paragraph>
-<s-paragraph>
-  Archived products: {archivedProductCount}
-</s-paragraph>
-<s-paragraph>
-  Active products out of stock: {outOfStockProductCount}
-</s-paragraph>
-<s-paragraph>
-  Active products with low stock: {lowStockProductCount}
-</s-paragraph>
+
 <s-paragraph>
   Active products adequately stocked: {adequatelyStockedProductCount}
 </s-paragraph>
+
 <s-paragraph>
-  Products not updated in 90 days: {staleProducts.length}
+  Active products out of stock: {outOfStockProductCount}
 </s-paragraph>
-<s-paragraph>
-  Products created in the last 90 days: {recentlyCreatedProducts.length}
-</s-paragraph>
-<s-paragraph>
-  Average inventory per active product: {averageActiveInventory}
-</s-paragraph>
-<s-paragraph>
-  Total active inventory units: {totalActiveInventory}
-</s-paragraph>
+
 <s-paragraph>
   Active products with high stock: {highStockProducts.length}
 </s-paragraph>
+
 <s-paragraph>
-  Orders analysed from the last 60 days: {orders.length}
+  Active products with low stock: {lowStockProductCount}
 </s-paragraph>
+
 <s-paragraph>
   Active products with stock but no sales:{" "}
   {productsWithStockButNoSales.length}
 </s-paragraph>
+
 <s-paragraph>
-  Total units sold in the last 60 days: {totalUnitsSold}
+  Archived products: {archivedProductCount}
 </s-paragraph>
+
 <s-paragraph>
-  Average units sold per selling product: {averageUnitsSold}
+  Average inventory per active product: {averageActiveInventory}
 </s-paragraph>
-<s-paragraph>
-  Below-average selling products: {slowSellingProducts.length}
-</s-paragraph>
+
 <s-paragraph>
   Average-selling products: {averageSellingProducts.length}
 </s-paragraph>
+
 <s-paragraph>
-  Above-average selling products: {fastSellingProducts.length}
+  Average units sold per selling product: {averageUnitsSold}
 </s-paragraph>
+
+<s-paragraph>
+  Below-average selling products: {slowSellingProducts.length}
+</s-paragraph>
+
+<s-paragraph>
+  Draft products: {draftProductCount}
+</s-paragraph>
+
+<s-paragraph>
+  Orders analysed from the last 60 days: {orders.length}
+</s-paragraph>
+
+<s-paragraph>
+  Product types represented: {productTypeCount}
+</s-paragraph>
+
+<s-paragraph>
+  Product vendors represented: {vendorCount}
+</s-paragraph>
+
+<s-paragraph>
+  Products created in the last 90 days: {recentlyCreatedProducts.length}
+</s-paragraph>
+
+<s-paragraph>
+  Products not updated in 90 days: {staleProducts.length}
+</s-paragraph>
+
 <s-paragraph>
   Products recommended for reorder: {reorderProducts.length}
+</s-paragraph>
+
+<s-paragraph>
+  Total active inventory units: {totalActiveInventory}
+</s-paragraph>
+
+<s-paragraph>
+  Total products analysed: {products.length}
+</s-paragraph>
+
+<s-paragraph>
+  Total units sold in the last 60 days: {totalUnitsSold}
 </s-paragraph>
 </s-section>
       
@@ -479,7 +500,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 )}
 <s-section heading="Product Recommendations">
   <s-stack direction="block" gap="base">
-    {productRecommendations.map((product) => (
+    {[...productRecommendations]
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
       <s-paragraph key={product.id}>
         <s-link href={`/app/products/${product.handle}`}>
           {product.title}
