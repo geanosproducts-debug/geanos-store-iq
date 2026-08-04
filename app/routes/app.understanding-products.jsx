@@ -84,6 +84,10 @@ const averageActiveInventory =
   activeProductCount > 0
     ? Math.round((totalActiveInventory / activeProductCount) * 10) / 10
     : 0;
+    const highStockProducts = products.filter(
+  (product) =>
+    product.status === "ACTIVE" && product.totalInventory >= 50,
+);
 const draftProductCount = products.filter(
   (product) => product.status === "DRAFT",
 ).length;
@@ -152,6 +156,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 </s-paragraph>
 <s-paragraph>
   Total active inventory units: {totalActiveInventory}
+</s-paragraph>
+<s-paragraph>
+  Active products with high stock: {highStockProducts.length}
 </s-paragraph>
       </s-section>
       
