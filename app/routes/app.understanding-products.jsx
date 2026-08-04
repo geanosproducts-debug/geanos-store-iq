@@ -6,43 +6,66 @@ const products = [];
 let cursor = null;
 let hasNextPage = true;
 
- const response = await admin.graphql(
-  `#graphql
-    query UnderstandingProducts($cursor: String) {
-  products(first: 50, after: $cursor) {
-        nodes {
-          id
-          title
-          handle
-          status
-          vendor
-          productType
-          totalInventory
-          createdAt
-          updatedAt
-        }
+ while (hasNextPage) {
+  const response = await admin.graphql(
+    `#graphql
+      query UnderstandingProducts($cursor: String) {
+        products(first: 50, after: $cursor) {
+          nodes {
+            id
+            title
+            handle
+            status
+            vendor
+            productType
+            totalInventory
+            createdAt
+            updatedAt
+          }
           pageInfo {
-  hasNextPage
-  endCursor
-}
+            hasNextPage
+            endCursor
+          }
+        }
       }
-    }
-  `,
-  {
-  variables: {
-    cursor,
-  },
-},
-);
+    `,
+    {
+      variables: {
+        cursor,
+      },
+    },
+  );
 
-const responseJson = await response.json();
+  const responseJson = await response.json();
+  const productPage = responseJson.data.products;
 
-return {
-  products: responseJson.data.products.nodes,
-};
+  products.push(...productPage.nodes);
+  hasNextPage = productPage.pageInfo.hasNextPage;
+  cursor = productPage.pageInfo.endCursor;
+}
+
+return { products };
 };
 export default function UnderstandingProductsPage() {
     const { products } = useLoaderData();
+    const vendorCount = new Set(
+  products.map((product) => product.vendor).filter(Boolean),
+).size;
+const productTypeCount = new Set(
+  products.map((product) => product.productType).filter(Boolean),
+).size;
+const productsByVendor = products.reduce((counts, product) => {
+  const vendor = product.vendor?.trim() || "No vendor";
+  counts[vendor] = (counts[vendor] || 0) + 1;
+
+  return counts;
+}, {});
+const productsByType = products.reduce((counts, product) => {
+  const productType = product.productType?.trim() || "No product type";
+  counts[productType] = (counts[productType] || 0) + 1;
+
+  return counts;
+}, {});
     const activeProductCount = products.filter(
   (product) => product.status === "ACTIVE",
 ).length;
@@ -80,6 +103,12 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
   Total products analysed: {products.length}
 </s-paragraph>
 <s-paragraph>
+  Product vendors represented: {vendorCount}
+</s-paragraph>
+<s-paragraph>
+  Product types represented: {productTypeCount}
+</s-paragraph>
+<s-paragraph>
   Active products: {activeProductCount}
 </s-paragraph>
 <s-paragraph>
@@ -98,6 +127,24 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
   Active products adequately stocked: {adequatelyStockedProductCount}
 </s-paragraph>
       </s-section>
+      <s-section heading="Products by Vendor">
+  <s-stack direction="block" gap="base">
+    {Object.entries(productsByVendor).map(([vendor, count]) => (
+      <s-paragraph key={vendor}>
+       {vendor}: {count} {count === 1 ? "product" : "products"}
+      </s-paragraph>
+    ))}
+  </s-stack>
+</s-section>
+<s-section heading="Products by Product Type">
+  <s-stack direction="block" gap="base">
+    {Object.entries(productsByType).map(([productType, count]) => (
+      <s-paragraph key={productType}>
+     {productType}: {count} {count === 1 ? "product" : "products"}
+      </s-paragraph>
+    ))}
+  </s-stack>
+</s-section>
       {outOfStockProducts.length > 0 && (
   <s-section heading="Active Products Out of Stock">
     <s-stack direction="block" gap="base">
