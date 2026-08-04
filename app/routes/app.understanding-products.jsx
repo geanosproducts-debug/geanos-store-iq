@@ -343,16 +343,21 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
       
       <s-section heading="Products by Vendor">
   <s-stack direction="block" gap="base">
-    {Object.entries(productsByVendor).map(([vendor, count]) => (
+    {Object.entries(productsByVendor)
+  .sort(([vendorA], [vendorB]) => vendorA.localeCompare(vendorB))
+  .map(([vendor, count]) => (
       <s-paragraph key={vendor}>
        {vendor}: {count} {count === 1 ? "product" : "products"}
       </s-paragraph>
     ))}
   </s-stack>
 </s-section>
+
 <s-section heading="Products by Product Type">
   <s-stack direction="block" gap="base">
-    {Object.entries(productsByType).map(([productType, count]) => (
+   {Object.entries(productsByType)
+  .sort(([typeA], [typeB]) => typeA.localeCompare(typeB))
+  .map(([productType, count]) => (
       <s-paragraph key={productType}>
      {productType}: {count} {count === 1 ? "product" : "products"}
       </s-paragraph>
@@ -363,7 +368,9 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 {productsWithStockButNoSales.length > 0 && (
   <s-section heading="Active Products With Stock But No Sales">
     <s-stack direction="block" gap="base">
-      {productsWithStockButNoSales.map((product) => (
+     {[...productsWithStockButNoSales]
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
         <s-link
           key={product.id}
           href={`/app/products/${product.handle}`}
