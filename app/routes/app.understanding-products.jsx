@@ -5,6 +5,9 @@ const { admin } = await authenticate.admin(request);
 const products = [];
 let cursor = null;
 let hasNextPage = true;
+const orders = [];
+let orderCursor = null;
+let hasNextOrderPage = true;
 
  while (hasNextPage) {
   const response = await admin.graphql(
@@ -43,11 +46,61 @@ let hasNextPage = true;
   hasNextPage = productPage.pageInfo.hasNextPage;
   cursor = productPage.pageInfo.endCursor;
 }
+while (hasNextOrderPage) {
+  const ordersResponse = await admin.graphql(
+    `#graphql
+      query UnderstandingProductSales($cursor: String) {
+        orders(first: 50, after: $cursor) {
+          nodes {
+            id
+            createdAt
+            lineItems(first: 250) {
+              nodes {
+                quantity
+                product {
+                  id
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `,
+    {
+      variables: {
+        cursor: orderCursor,
+      },
+    },
+  );
 
-return { products };
+  const ordersResponseJson = await ordersResponse.json();
+  const orderPage = ordersResponseJson.data.orders;
+
+  orders.push(...orderPage.nodes);
+  hasNextOrderPage = orderPage.pageInfo.hasNextPage;
+  orderCursor = orderPage.pageInfo.endCursor;
+}
+
+return { products, orders };
 };
 export default function UnderstandingProductsPage() {
-    const { products } = useLoaderData();
+    const { products, orders } = useLoaderData();
+    const soldProductIds = new Set(
+  orders
+    .flatMap((order) => order.lineItems.nodes)
+    .map((lineItem) => lineItem.product?.id)
+    .filter(Boolean),
+);
+const productsWithStockButNoSales = products.filter(
+  (product) =>
+    product.status === "ACTIVE" &&
+    product.totalInventory > 0 &&
+    !soldProductIds.has(product.id),
+);
     const vendorCount = new Set(
   products.map((product) => product.vendor).filter(Boolean),
 ).size;
@@ -160,7 +213,14 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
 <s-paragraph>
   Active products with high stock: {highStockProducts.length}
 </s-paragraph>
-      </s-section>
+<s-paragraph>
+  Orders analysed from the last 60 days: {orders.length}
+</s-paragraph>
+<s-paragraph>
+  Active products with stock but no sales:{" "}
+  {productsWithStockButNoSales.length}
+</s-paragraph>
+</s-section>
       
       <s-section heading="Products by Vendor">
   <s-stack direction="block" gap="base">
@@ -180,6 +240,20 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
     ))}
   </s-stack>
 </s-section>
+{productsWithStockButNoSales.length > 0 && (
+  <s-section heading="Active Products With Stock But No Sales">
+    <s-stack direction="block" gap="base">
+      {productsWithStockButNoSales.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title} — Inventory: {product.totalInventory}
+        </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
       {outOfStockProducts.length > 0 && (
   <s-section heading="Active Products Out of Stock">
     <s-stack direction="block" gap="base">
@@ -212,6 +286,20 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
   <s-section heading="Active Products Adequately Stocked">
     <s-stack direction="block" gap="base">
       {adequatelyStockedProducts.map((product) => (
+        <s-link
+          key={product.id}
+          href={`/app/products/${product.handle}`}
+        >
+          {product.title} — Inventory: {product.totalInventory}
+        </s-link>
+      ))}
+    </s-stack>
+  </s-section>
+)}
+{highStockProducts.length > 0 && (
+  <s-section heading="Active Products With High Stock">
+    <s-stack direction="block" gap="base">
+      {highStockProducts.map((product) => (
         <s-link
           key={product.id}
           href={`/app/products/${product.handle}`}
