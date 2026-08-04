@@ -22,6 +22,7 @@ let hasNextOrderPage = true;
             vendor
             productType
             totalInventory
+            tracksInventory
             createdAt
             updatedAt
           }
@@ -145,6 +146,39 @@ const reorderProducts = productsWithSales.filter((product) => {
 
   return product.totalInventory <= unitsSold;
 });
+
+const productRecommendations = products
+  .filter((product) => product.status === "ACTIVE")
+  .map((product) => {
+    const unitsSold = unitsSoldByProduct[product.id] || 0;
+    let recommendation = "Maintain current stock and monitor performance.";
+
+    if (!product.tracksInventory) {
+  recommendation = "Inventory tracking is disabled for this product.";
+} else if (product.totalInventory <= 0) {
+      recommendation = "Restock this product before promoting it.";
+    } else if (unitsSold > 0 && product.totalInventory <= unitsSold) {
+      recommendation = "Reorder based on recent sales and remaining stock.";
+    } else if (unitsSold === 0 && product.totalInventory >= 50) {
+      recommendation =
+        "Review pricing or promotion because stock is high with no recent sales.";
+    } else if (unitsSold === 0) {
+      recommendation =
+        "Consider additional marketing because no recent sales were recorded.";
+    } else if (unitsSold > averageUnitsSold) {
+      recommendation =
+        "Monitor inventory closely because this product is selling above average.";
+    } else if (unitsSold < averageUnitsSold) {
+      recommendation =
+        "Review this product because it is selling below the store average.";
+    }
+
+    return {
+      ...product,
+      unitsSold,
+      recommendation,
+    };
+  });
     const vendorCount = new Set(
   products.map((product) => product.vendor).filter(Boolean),
 ).size;
@@ -193,7 +227,9 @@ const archivedProductCount = products.filter(
 ).length;
 const outOfStockProducts = products.filter(
   (product) =>
-    product.status === "ACTIVE" && product.totalInventory <= 0,
+    product.status === "ACTIVE" &&
+product.tracksInventory &&
+product.totalInventory <= 0,
 );
 const outOfStockProductCount = outOfStockProducts.length;
 const lowStockProducts = products.filter(
@@ -426,6 +462,7 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
     </s-stack>
   </s-section>
 )}
+
 {highStockProducts.length > 0 && (
   <s-section heading="Active Products With High Stock">
     <s-stack direction="block" gap="base">
@@ -440,6 +477,23 @@ const adequatelyStockedProductCount = adequatelyStockedProducts.length;
     </s-stack>
   </s-section>
 )}
+<s-section heading="Product Recommendations">
+  <s-stack direction="block" gap="base">
+    {productRecommendations.map((product) => (
+      <s-paragraph key={product.id}>
+        <s-link href={`/app/products/${product.handle}`}>
+          {product.title}
+        </s-link>
+        {" — Inventory: "}
+        {product.totalInventory}
+        {" — Units sold: "}
+        {product.unitsSold}
+        {" — Recommendation: "}
+        {product.recommendation}
+      </s-paragraph>
+    ))}
+  </s-stack>
+</s-section>
     </s-page>
   );
 }
