@@ -10,7 +10,7 @@ export default function InventorySummary({
     <s-section heading="Inventory Overview">
       <s-card>
         <s-stack direction="block" gap="base">
-         <s-section heading="Inventory Overview">
+         <s-section>
   <s-card>
     <s-stack direction="block" gap="base">
 
