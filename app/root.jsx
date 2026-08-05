@@ -13,6 +13,7 @@ export default function App() {
         />
         <Meta />
         <Links />
+        <script src="https://cdn.shopify.com/shopifycloud/polaris.js" />
       </head>
       <body>
         <Outlet />
