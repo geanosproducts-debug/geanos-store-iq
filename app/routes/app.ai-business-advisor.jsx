@@ -15,8 +15,11 @@ export async function loader({ request }) {
             totalInventory
            tracksInventory
             description
-            featuredMedia {
-  alt
+             updatedAt
+             vendor
+             productType
+            featuredMedia {       
+            alt
 }
           }
         }
@@ -59,6 +62,21 @@ export default function AiBusinessAdvisor() {
   const missingDescriptionProducts = activeProducts.filter(
   (product) => !product.description?.trim(),
 );
+
+const staleProducts = activeProducts.filter(
+  (product) =>
+    Date.now() - new Date(product.updatedAt).getTime() >
+    90 * 24 * 60 * 60 * 1000,
+);
+
+const missingVendorProducts = activeProducts.filter(
+  (product) => !product.vendor?.trim(),
+);
+
+const missingProductTypeProducts = activeProducts.filter(
+  (product) => !product.productType?.trim(),
+);
+
 const duplicateTitleGroups = Object.values(
   activeProducts.reduce((groups, product) => {
     const title = product.title.trim().toLowerCase();
@@ -100,6 +118,18 @@ if (missingImageProducts.length > 0) {
 if (missingDescriptionProducts.length > 0) {
   priorityRecommendations.push(
     `Add descriptions to ${missingDescriptionProducts.length} products.`,
+  );
+}
+
+if (staleProducts.length > 0) {
+  priorityRecommendations.push(
+    `Review ${staleProducts.length} products that have not been updated in 90 days.`,
+  );
+}
+
+if (missingProductTypeProducts.length > 0) {
+  priorityRecommendations.push(
+    `Assign product types to ${missingProductTypeProducts.length} products.`,
   );
 }
 
@@ -157,16 +187,43 @@ if (highStockProducts.length > 0) {
 ))}
       </s-section>
       <s-section heading="Product Priorities">
+
   <s-paragraph>
     {missingDescriptionProducts.length > 0
       ? `Review: ${missingDescriptionProducts.length} active products are missing a description.`
       : "All active products currently have descriptions."}
+
   </s-paragraph>
   {missingDescriptionProducts.map((product) => (
   <s-paragraph key={product.id}>
     Missing description: {product.title}
   </s-paragraph>
 ))}
+
+<s-paragraph>
+  {staleProducts.length > 0
+    ? `Freshness review: ${staleProducts.length} active products have not been updated in the last 90 days.`
+    : "No active products currently require a 90-day freshness review."}
+</s-paragraph>
+
+<s-paragraph>
+  {missingVendorProducts.length > 0
+    ? `Organisation review: ${missingVendorProducts.length} active products have no vendor.`
+    : "All active products currently have a vendor."}
+</s-paragraph>
+
+<s-paragraph>
+  {missingProductTypeProducts.length > 0
+    ? `Organisation review: ${missingProductTypeProducts.length} active products have no product type.`
+    : "All active products currently have a product type."}
+</s-paragraph>
+
+{missingProductTypeProducts.map((product) => (
+  <s-paragraph key={product.id}>
+    Missing product type: {product.title}
+  </s-paragraph>
+))}
+
 <s-paragraph>
   {duplicateTitleGroups.length > 0
     ? `Potential duplicate product groups found: ${duplicateTitleGroups.length}.`
@@ -178,16 +235,7 @@ if (highStockProducts.length > 0) {
     Potential duplicate: {group[0].title} — {group.length} products
   </s-paragraph>
 ))}
-  <s-paragraph>
-    {duplicateTitleGroups.length > 0
-      ? `Review: ${duplicateTitleGroups.length} groups of products have duplicate titles.`
-      : "No duplicate product titles found."}
-  </s-paragraph>
-  {duplicateTitleGroups.map((group, index) => (
-    <s-paragraph key={index}>
-      Duplicate titles: {group.map((product) => product.title).join(", ")}
-    </s-paragraph>
-  ))}
+  
 </s-section>
 <s-section heading="Store Health Priorities">
   
