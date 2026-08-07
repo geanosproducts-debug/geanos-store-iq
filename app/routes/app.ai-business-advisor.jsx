@@ -23,6 +23,20 @@ export async function loader({ request }) {
 }
           }
         }
+          orders(first: 100, sortKey: PROCESSED_AT, reverse: true) {
+  nodes {
+    id
+    processedAt
+    test
+    cancelledAt
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+  }
+}
       }
     `,
   );
@@ -31,11 +45,33 @@ export async function loader({ request }) {
 
   return {
     products: data.data.products.nodes,
+    orders: data.data.orders.nodes,
   };
 }
 
 export default function AiBusinessAdvisor() {
-  const { products } = useLoaderData();
+  const { products, orders } = useLoaderData();
+  const validOrders = orders.filter(
+    
+  (order) => !order.test && !order.cancelledAt,
+  );
+
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+const recentOrders = validOrders.filter(
+  (order) => new Date(order.processedAt).getTime() >= thirtyDaysAgo,
+);
+
+const recentRevenue = recentOrders.reduce(
+  (total, order) =>
+    total + Number(order.currentTotalPriceSet.shopMoney.amount || 0),
+  0,
+);
+
+const averageOrderValue =
+  recentOrders.length > 0 ? recentRevenue / recentOrders.length : 0;
+
+  const salesCurrency =
+  recentOrders[0]?.currentTotalPriceSet.shopMoney.currencyCode || "";
 
   const activeProducts = products.filter(
     (product) => product.status === "ACTIVE",
@@ -95,7 +131,13 @@ const missingImageAltProducts = activeProducts.filter(
   (product) =>
     product.featuredMedia && !product.featuredMedia.alt?.trim(),
 )
+
 const priorityRecommendations = [];
+if (recentOrders.length === 0) {
+  priorityRecommendations.push(
+    "No completed non-test sales in the last 30 days. Focus on qualified traffic and conversion activity.",
+  );
+}
 
 if (outOfStockProducts.length > 0) {
   priorityRecommendations.push(
@@ -105,7 +147,7 @@ if (outOfStockProducts.length > 0) {
 
 if (lowStockProducts.length > 0) {
   priorityRecommendations.push(
-    `Review ${lowStockProducts.length} low-stock products before they sell out.`,
+  `Low-stock watch list: ${lowStockProducts.length}. Review products with 10 units or fewer before stock runs out.`
   );
 }
 
@@ -255,7 +297,24 @@ if (highStockProducts.length > 0) {
       ? `SEO priority: ${missingImageAltProducts.length} active products have a featured image without alt text.`
       : "All active featured images currently have alt text."}
   </s-paragraph>
+  </s-section>
+<s-section heading="Sales Priorities">
+  <s-paragraph>
+    Completed non-test orders in the last 30 days: {recentOrders.length}
+  </s-paragraph>
+
+  <s-paragraph>
+    {recentOrders.length > 0
+      ? `30-day revenue: ${salesCurrency} ${recentRevenue.toFixed(2)}`
+      : "No completed non-test sales were recorded in the last 30 days."}
+  </s-paragraph>
+
+  <s-paragraph>
+    {recentOrders.length > 0
+      ? `Average order value: ${salesCurrency} ${averageOrderValue.toFixed(2)}`
+      : "Sales priority: focus on product readiness, traffic, and conversion activity."}
+  </s-paragraph>
 </s-section>
-    </s-page>
+</s-page>
   );
 }
