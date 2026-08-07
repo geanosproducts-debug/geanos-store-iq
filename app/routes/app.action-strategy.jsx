@@ -7,9 +7,12 @@ export default function ActionStrategy() {
         </s-paragraph>
 
         <s-paragraph>
-          The AI Business Advisor and Reports & Automation tools will be added
-          here as they are developed.
+         Use the AI Business Advisor to turn Store IQ analysis into practical
+priorities and recommended next actions.
         </s-paragraph>
+        <s-button href="/app/ai-business-advisor">
+  Open AI Business Advisor
+</s-button>
       </s-section>
       <s-section heading="Seasonal & Marketing Intelligence">
   <s-paragraph>
