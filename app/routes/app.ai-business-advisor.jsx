@@ -202,31 +202,78 @@ if (highStockProducts.length > 0) {
             ? `High priority: ${outOfStockProducts.length} active products are out of stock. Review these products for restocking or whether they should remain active.`
             : "No active products are currently out of stock."}
         </s-paragraph>
-             {outOfStockProducts.map((product) => (
-          <s-paragraph key={product.id}>
-            Out of stock: {product.title}
-          </s-paragraph>
+            {outOfStockProducts.slice(0, 10).map((product) => (
+         <s-paragraph key={product.id}>
+  <strong>
+    Out of stock: {product.title}
+  </strong>
+</s-paragraph>
         ))}
+        {outOfStockProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {outOfStockProducts.length - 10} out-of-stock products
+    </summary>
+
+    {outOfStockProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        <strong>Out of stock: {product.title}</strong>
+      </s-paragraph>
+    ))}
+  </details>
+)}
         <s-paragraph>
-          {lowStockProducts.length > 0
-            ? `Watch list: ${lowStockProducts.length} active products have 10 units or fewer remaining. Review these before they sell out.`
-            : "No active products are currently in the low-stock range."}
-        </s-paragraph>
-{lowStockProducts.map((product) => (
+  <strong>
+    {lowStockProducts.length > 0
+      ? `Watch list: ${lowStockProducts.length} active products have 10 units or fewer remaining. Review these before they sell out.`
+      : "No active products are currently in the low-stock range."}
+  </strong>
+</s-paragraph>
+{lowStockProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
+  <strong>
     Low stock: {product.title} — {product.totalInventory} remaining
-  </s-paragraph>
+  </strong>
+</s-paragraph>
 ))}
+{lowStockProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {lowStockProducts.length - 10} low-stock products
+    </summary>
+
+    {lowStockProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        <strong>
+          Low stock: {product.title} — {product.totalInventory} remaining
+        </strong>
+      </s-paragraph>
+    ))}
+  </details>
+)}
         <s-paragraph>
           {highStockProducts.length > 0
             ? `Opportunity: ${highStockProducts.length} active products have 50 units or more. Consider featuring these products in promotions to help move available stock.`
             : "No active products currently require a high-stock promotion review."}
         </s-paragraph>
-        {highStockProducts.map((product) => (
+        {highStockProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
     High stock: {product.title} — {product.totalInventory} available
   </s-paragraph>
 ))}
+{highStockProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {highStockProducts.length - 10} high-stock products
+    </summary>
+
+    {highStockProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        High stock: {product.title} — {product.totalInventory} available
+      </s-paragraph>
+    ))}
+  </details>
+)}
       </s-section>
       <s-section heading="Product Priorities">
 
@@ -236,12 +283,24 @@ if (highStockProducts.length > 0) {
       : "All active products currently have descriptions."}
 
   </s-paragraph>
-  {missingDescriptionProducts.map((product) => (
+ {missingDescriptionProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
     Missing description: {product.title}
   </s-paragraph>
 ))}
+{missingDescriptionProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {missingDescriptionProducts.length - 10} products missing descriptions
+    </summary>
 
+    {missingDescriptionProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        Missing description: {product.title}
+      </s-paragraph>
+    ))}
+  </details>
+)}
 <s-paragraph>
   {staleProducts.length > 0
     ? `Freshness review: ${staleProducts.length} active products have not been updated in the last 90 days.`
@@ -260,32 +319,69 @@ if (highStockProducts.length > 0) {
     : "All active products currently have a product type."}
 </s-paragraph>
 
-{missingProductTypeProducts.map((product) => (
+{missingProductTypeProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
     Missing product type: {product.title}
   </s-paragraph>
 ))}
+{missingProductTypeProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {missingProductTypeProducts.length - 10} products missing a product type
+    </summary>
 
+    {missingProductTypeProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        Missing product type: {product.title}
+      </s-paragraph>
+    ))}
+  </details>
+)}
 <s-paragraph>
   {duplicateTitleGroups.length > 0
     ? `Potential duplicate product groups found: ${duplicateTitleGroups.length}.`
     : "No potential duplicate product titles found."}
 </s-paragraph>
 
-{duplicateTitleGroups.map((group) => (
+{duplicateTitleGroups.slice(0, 10).map((group) => (
   <s-paragraph key={group[0].id}>
     Potential duplicate: {group[0].title} — {group.length} products
   </s-paragraph>
 ))}
-  
+{duplicateTitleGroups.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {duplicateTitleGroups.length - 10} potential duplicate groups
+    </summary>
+
+    {duplicateTitleGroups.slice(10).map((group) => (
+      <s-paragraph key={group[0].id}>
+        Potential duplicate: {group[0].title} — {group.length} products
+      </s-paragraph>
+    ))}
+  </details>
+)}
 </s-section>
 <s-section heading="Store Health Priorities">
   
-    {missingImageProducts.map((product) => (
+    {missingImageProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
     Missing featured image: {product.title}
   </s-paragraph>
 ))}
+{missingImageProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {missingImageProducts.length - 10} products missing a featured image
+    </summary>
+
+    {missingImageProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        Missing featured image: {product.title}
+      </s-paragraph>
+    ))}
+  </details>
+)}
 <s-paragraph>
     {missingImageProducts.length > 0
       ? `Review: ${missingImageProducts.length} active products have no featured image.`
