@@ -349,6 +349,7 @@ if (highStockProducts.length > 0) {
 </s-button>
   </s-paragraph>
 ))}
+
 {highStockProducts.length > 10 && (
   <details>
     <summary>
@@ -358,6 +359,21 @@ if (highStockProducts.length > 0) {
     {highStockProducts.slice(10).map((product) => (
       <s-paragraph key={product.id}>
         High stock: {product.title} — {product.totalInventory} available
+      </s-paragraph>
+    ))}
+  </details>
+)}
+{highStockProducts.length > 10 && (
+  <details>
+    <summary>
+      Show remaining {highStockProducts.length - 10} high-stock products
+    </summary>
+
+    {highStockProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        <s-button href={`/app/products/${product.handle}`}>
+          High stock: {product.title} — {product.totalInventory} available
+        </s-button>
       </s-paragraph>
     ))}
   </details>
@@ -421,6 +437,22 @@ if (highStockProducts.length > 0) {
 {missingProductTypeProducts.length > 10 && (
   <details>
     <summary>
+      Show remaining {missingProductTypeProducts.length - 10} products missing product types
+    </summary>
+
+    {missingProductTypeProducts.slice(10).map((product) => (
+      <s-paragraph key={product.id}>
+        <s-button href={`/app/products/${product.handle}`}>
+          Missing product type: {product.title}
+        </s-button>
+      </s-paragraph>
+    ))}
+  </details>
+)}
+
+{missingProductTypeProducts.length > 10 && (
+  <details>
+    <summary>
       Show remaining {missingProductTypeProducts.length - 10} products missing a product type
     </summary>
 
@@ -479,11 +511,13 @@ if (highStockProducts.length > 0) {
       Show remaining {missingImageProducts.length - 10} products missing a featured image
     </summary>
 
-    {missingImageProducts.slice(10).map((product) => (
-      <s-paragraph key={product.id}>
-        Missing featured image: {product.title}
-      </s-paragraph>
-    ))}
+   {missingImageProducts.slice(10).map((product) => (
+  <s-paragraph key={product.id}>
+    <s-button href={`/app/products/${product.handle}`}>
+      Missing featured image: {product.title}
+    </s-button>
+  </s-paragraph>
+))}
   </details>
 )}
 <s-paragraph>
