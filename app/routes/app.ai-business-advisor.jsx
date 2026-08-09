@@ -111,10 +111,17 @@ orderCursor = orderConnection.pageInfo.endCursor;
   return {
     products,
     orders,
+     generatedAt: new Date().toISOString(),
   };
 }
   export default function AiBusinessAdvisor() {
-  const { products, orders } = useLoaderData();
+  const { products, orders, generatedAt } = useLoaderData();
+  const analysisGeneratedAt = new Date(generatedAt).toLocaleString("en-AU", {
+  dateStyle: "medium",
+  timeStyle: "short",
+    timeZone: "Australia/Brisbane",
+});
+
   const validOrders = orders.filter(
     
   (order) => !order.test && !order.cancelledAt,
@@ -253,12 +260,32 @@ if (highStockProducts.length > 0) {
   return (
     <s-page heading="AI Business Advisor">
       <s-section heading="Business Recommendations">
+        <s-paragraph>
+  <strong>HOW TO READ THESE PRIORITIES</strong>
+</s-paragraph>
+
+<s-paragraph>
+  <strong>Immediate:</strong> Act now. <strong>Soon:</strong> Plan next.{" "}
+  <strong>Opportunity:</strong> Potential growth.
+</s-paragraph>
+
         {priorityRecommendations.map((recommendation, index) => (
   <s-paragraph key={recommendation}>
-    Priority {index + 1}: {recommendation}
+   <strong>
+  {recommendation.startsWith("Consider promotions")
+    ? "Opportunity"
+    : index === 0
+      ? "Immediate"
+      : "Soon"}
+  :
+</strong>{" "}
+Priority {index + 1}: {recommendation}
   </s-paragraph>
 ))}
 
+<s-paragraph>
+  <strong>OPEN THE RELEVANT STORE IQ WORKSPACE</strong>
+</s-paragraph>
 <s-button href="/app/inventory">
   Open Inventory Intelligence
 </s-button>
@@ -279,7 +306,14 @@ if (highStockProducts.length > 0) {
   Open Business Analysis
 </s-button>
       </s-section>
-
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+    gap: "16px",
+    alignItems: "start",
+  }}
+>
       <s-section heading="Inventory Priorities">
         <s-paragraph>
           {outOfStockProducts.length > 0
@@ -496,6 +530,7 @@ if (highStockProducts.length > 0) {
   </details>
 )}
 </s-section>
+</div>
 <s-section heading="Store Health Priorities">
   
     {missingImageProducts.slice(0, 10).map((product) => (
