@@ -4,52 +4,115 @@ import { authenticate } from "../shopify.server";
 export async function loader({ request }) {
   const { admin } = await authenticate.admin(request);
 
-  const response = await admin.graphql(
-    `#graphql
-      query AdvisorProducts {
-        products(first: 100) {
-          nodes {
-            id
-            title
-            status
-            totalInventory
-           tracksInventory
-            description
-             updatedAt
-             vendor
-             productType
-            featuredMedia {       
-            alt
-}
+  const products = [];
+  let productCursor = null;
+  let hasMoreProducts = true;
+
+  while (hasMoreProducts) {
+    const response = await admin.graphql(
+      `#graphql
+        query AdvisorProducts($productCursor: String) {
+          products(first: 250, after: $productCursor) {
+            nodes {
+              id
+              title
+              status
+              totalInventory
+              tracksInventory
+              description
+              updatedAt
+              vendor
+              productType
+              featuredMedia {
+                alt
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
-          orders(first: 100, sortKey: PROCESSED_AT, reverse: true) {
-  nodes {
-    id
-    processedAt
-    test
-    cancelledAt
-    currentTotalPriceSet {
-      shopMoney {
-        amount
-        currencyCode
-      }
-    }
-  }
-}
-      }
-    `,
-  );
+      `,
+      {
+        variables: {
+          productCursor,
+        },
+      },
+    );
 
-  const data = await response.json();
+    const data = await response.json();
+    const productConnection = data.data.products;
+
+    products.push(...productConnection.nodes);
+
+    hasMoreProducts = productConnection.pageInfo.hasNextPage;
+    productCursor = productConnection.pageInfo.endCursor;
+  }
+
+  const orders = [];
+  let orderCursor = null;
+  let hasMoreOrders = true;
+
+  while (hasMoreOrders) {
+    const response = await admin.graphql(
+      `#graphql
+        query AdvisorOrders($orderCursor: String) {
+          orders(
+            first: 100
+            after: $orderCursor
+            sortKey: PROCESSED_AT
+            reverse: true
+          ) {
+            nodes {
+              id
+              processedAt
+              test
+              cancelledAt
+              currentTotalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+      `,
+      {
+        variables: {
+          orderCursor,
+        },
+      },
+    );
+
+    const data = await response.json();
+const orderConnection = data.data.orders;
+
+orders.push(...orderConnection.nodes);
+
+const oldestOrderOnPage = orderConnection.nodes.at(-1);
+const reachedThirtyDayCutoff =
+  oldestOrderOnPage &&
+  new Date(oldestOrderOnPage.processedAt).getTime() <
+    Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+hasMoreOrders =
+  orderConnection.pageInfo.hasNextPage && !reachedThirtyDayCutoff;
+
+orderCursor = orderConnection.pageInfo.endCursor;
+  }
 
   return {
-    products: data.data.products.nodes,
-    orders: data.data.orders.nodes,
+    products,
+    orders,
   };
 }
-
-export default function AiBusinessAdvisor() {
+  export default function AiBusinessAdvisor() {
   const { products, orders } = useLoaderData();
   const validOrders = orders.filter(
     
