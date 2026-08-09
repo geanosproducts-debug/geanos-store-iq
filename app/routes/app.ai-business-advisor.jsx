@@ -17,6 +17,7 @@ export async function loader({ request }) {
               id
               title
               status
+              handle
               totalInventory
               tracksInventory
               description
@@ -257,6 +258,26 @@ if (highStockProducts.length > 0) {
     Priority {index + 1}: {recommendation}
   </s-paragraph>
 ))}
+
+<s-button href="/app/inventory">
+  Open Inventory Intelligence
+</s-button>
+
+<s-button href="/app/store-health">
+  Open Store Health & SEO Bot
+</s-button>
+
+<s-button href="/app/understanding-products">
+  Open Product Understanding
+</s-button>
+
+<s-button href="/app/seasonal-marketing-intelligence">
+  Open Seasonal & Marketing Intelligence
+</s-button>
+
+<s-button href="/app/business-analysis">
+  Open Business Analysis
+</s-button>
       </s-section>
 
       <s-section heading="Inventory Priorities">
@@ -267,9 +288,9 @@ if (highStockProducts.length > 0) {
         </s-paragraph>
             {outOfStockProducts.slice(0, 10).map((product) => (
          <s-paragraph key={product.id}>
-  <strong>
-    Out of stock: {product.title}
-  </strong>
+  <s-button href={`/app/products/${product.handle}`}>
+  Out of stock: {product.title}
+</s-button>
 </s-paragraph>
         ))}
         {outOfStockProducts.length > 10 && (
@@ -280,7 +301,9 @@ if (highStockProducts.length > 0) {
 
     {outOfStockProducts.slice(10).map((product) => (
       <s-paragraph key={product.id}>
-        <strong>Out of stock: {product.title}</strong>
+    <s-button href={`/app/products/${product.handle}`}>
+  Out of stock: {product.title}
+</s-button>
       </s-paragraph>
     ))}
   </details>
@@ -294,9 +317,9 @@ if (highStockProducts.length > 0) {
 </s-paragraph>
 {lowStockProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
-  <strong>
-    Low stock: {product.title} — {product.totalInventory} remaining
-  </strong>
+ <s-button href={`/app/products/${product.handle}`}>
+  Low stock: {product.title} — {product.totalInventory} remaining
+</s-button>
 </s-paragraph>
 ))}
 {lowStockProducts.length > 10 && (
@@ -307,9 +330,9 @@ if (highStockProducts.length > 0) {
 
     {lowStockProducts.slice(10).map((product) => (
       <s-paragraph key={product.id}>
-        <strong>
-          Low stock: {product.title} — {product.totalInventory} remaining
-        </strong>
+       <s-button href={`/app/products/${product.handle}`}>
+  Low stock: {product.title} — {product.totalInventory} remaining
+</s-button>
       </s-paragraph>
     ))}
   </details>
