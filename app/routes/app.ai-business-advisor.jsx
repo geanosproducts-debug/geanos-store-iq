@@ -344,7 +344,9 @@ if (highStockProducts.length > 0) {
         </s-paragraph>
         {highStockProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
-    High stock: {product.title} — {product.totalInventory} available
+   <s-button href={`/app/products/${product.handle}`}>
+  High stock: {product.title} — {product.totalInventory} available
+</s-button>
   </s-paragraph>
 ))}
 {highStockProducts.length > 10 && (
@@ -371,7 +373,9 @@ if (highStockProducts.length > 0) {
   </s-paragraph>
  {missingDescriptionProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
-    Missing description: {product.title}
+    <s-button href={`/app/products/${product.handle}`}>
+  Missing description: {product.title}
+</s-button>
   </s-paragraph>
 ))}
 {missingDescriptionProducts.length > 10 && (
@@ -382,7 +386,9 @@ if (highStockProducts.length > 0) {
 
     {missingDescriptionProducts.slice(10).map((product) => (
       <s-paragraph key={product.id}>
-        Missing description: {product.title}
+       <s-button href={`/app/products/${product.handle}`}>
+  Missing description: {product.title}
+</s-button>
       </s-paragraph>
     ))}
   </details>
@@ -407,7 +413,9 @@ if (highStockProducts.length > 0) {
 
 {missingProductTypeProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
-    Missing product type: {product.title}
+  <s-button href={`/app/products/${product.handle}`}>
+  Missing product type: {product.title}
+</s-button>
   </s-paragraph>
 ))}
 {missingProductTypeProducts.length > 10 && (
@@ -429,9 +437,17 @@ if (highStockProducts.length > 0) {
     : "No potential duplicate product titles found."}
 </s-paragraph>
 
-{duplicateTitleGroups.slice(0, 10).map((group) => (
+{duplicateTitleGroups.map((group) => (
   <s-paragraph key={group[0].id}>
     Potential duplicate: {group[0].title} — {group.length} products
+    {group.map((product, index) => (
+      <s-button
+        key={product.id}
+        href={`/app/products/${product.handle}`}
+      >
+        Open product {index + 1}
+      </s-button>
+    ))}
   </s-paragraph>
 ))}
 {duplicateTitleGroups.length > 10 && (
@@ -452,7 +468,9 @@ if (highStockProducts.length > 0) {
   
     {missingImageProducts.slice(0, 10).map((product) => (
   <s-paragraph key={product.id}>
-    Missing featured image: {product.title}
+    <s-button href={`/app/products/${product.handle}`}>
+  Missing featured image: {product.title}
+</s-button>
   </s-paragraph>
 ))}
 {missingImageProducts.length > 10 && (
