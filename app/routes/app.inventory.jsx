@@ -1,4 +1,5 @@
-import { useLoaderData, useRouteError } from "react-router";
+import { useState } from "react";
+import { useLoaderData, useRouteError, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import InventorySummary from "../Components/inventory/InventorySummary";
@@ -137,9 +138,75 @@ export default function InventoryPage() {
     pagesFetched,
     truncated,
   } = useLoaderData();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [inventoryFilter, setInventoryFilter] = useState("All");
+const [sortOption, setSortOption] = useState("Product A-Z");
+const [lastUpdated] = useState(() => new Date());
+ const filteredProducts = products
+  .filter((product) => {
+    const matchesSearch = product.title
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
 
+    const matchesInventoryFilter =
+      inventoryFilter === "All" ||
+      product.inventoryStatus === inventoryFilter;
+
+    return matchesSearch && matchesInventoryFilter;
+  })
+  .sort((a, b) => {
+    if (sortOption === "Product A-Z") {
+      return a.title.localeCompare(b.title);
+    }
+
+    if (sortOption === "Product Z-A") {
+      return b.title.localeCompare(a.title);
+    }
+
+    if (sortOption === "Inventory Low-High") {
+      return a.quantity - b.quantity;
+    }
+
+    if (sortOption === "Inventory High-Low") {
+      return b.quantity - a.quantity;
+    }
+
+    return 0;
+  });
+ 
   return (
     <s-page heading="Inventory Intelligence Dashboard">
+      <s-paragraph tone="subdued">
+  Last updated: {lastUpdated.toLocaleString()}
+</s-paragraph>
+<s-button onClick={() => revalidator.revalidate()}>
+  Refresh Inventory
+</s-button>
+      <s-section heading="Search Products">
+  <s-select
+  label="Inventory status"
+
+  value={inventoryFilter}
+  onChange={(event) => setInventoryFilter(event.currentTarget.value)}
+>
+  <s-option value="All">All</s-option>
+  <s-option value="Out of Stock">Out of Stock</s-option>
+  <s-option value="Low Stock">Low Stock</s-option>
+  <s-option value="Normal Stock">Normal Stock</s-option>
+  <s-option value="High Stock">High Stock</s-option>
+</s-select>
+<s-select
+  label="Sort products"
+  value={sortOption}
+  onChange={(event) => setSortOption(event.currentTarget.value)}
+>
+  <s-option value="Product A-Z">Product A-Z</s-option>
+  <s-option value="Product Z-A">Product Z-A</s-option>
+  <s-option value="Inventory Low-High">Inventory Low-High</s-option>
+  <s-option value="Inventory High-Low">Inventory High-Low</s-option>
+</s-select>
+
+</s-section>
 
        <s-section heading="Inventory Health">
     <s-card>
@@ -180,7 +247,7 @@ export default function InventoryPage() {
 
 <s-section heading="Product Inventory Details">
   <s-card>
-       <InventoryTable products={products} />
+    <InventoryTable products={filteredProducts} />
 </s-card>
 </s-section>
 
