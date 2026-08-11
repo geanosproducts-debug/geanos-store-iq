@@ -25,6 +25,7 @@ export default function InventoryTable({ products }) {
 <th>Product Type</th>
 <th>Shopify Status</th>
 <th>Inventory</th>
+<th>Units Sold 30 Days</th>
 <th>Inventory Status</th>
           </tr>
         </thead>
@@ -41,6 +42,7 @@ export default function InventoryTable({ products }) {
 <td>{product.productType || "Not assigned"}</td>
 <td>{product.productStatus}</td>
 <td>{product.quantity}</td>
+<td>{product.unitsSold}</td>
 <td>{product.inventoryStatus}</td>
             </tr>
           ))}

@@ -34,7 +34,134 @@ const INVENTORY_QUERY = `#graphql
     }
   }
 `;
+const INVENTORY_MOVEMENT_QUERY = `#graphql
+  query GetInventoryMovement($cursor: String, $query: String!) {
+    orders(
+      first: 100
+      after: $cursor
+      query: $query
+      sortKey: CREATED_AT
+      reverse: true
+    ) {
+      nodes {
+        id
+        createdAt
+        cancelledAt
+        displayFinancialStatus
+        test
+        lineItems(first: 250) {
+          nodes {
+            quantity
+            currentQuantity
+            product {
+              id
+              title
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
 
+async function fetchInventoryMovement(admin) {
+  const movementPeriodDays = 30;
+  const periodStart = new Date();
+
+  periodStart.setUTCDate(periodStart.getUTCDate() - movementPeriodDays);
+
+  const orderSearchQuery = [
+    `created_at:>=${periodStart.toISOString()}`,
+    "financial_status:paid",
+    "test:false",
+    "status:any",
+  ].join(" ");
+
+  const productMovementMap = new Map();
+
+  let cursor = null;
+  let hasNextPage = true;
+  let pagesFetched = 0;
+  let movementOrderCount = 0;
+  let totalUnitsSold = 0;
+
+  const MAX_MOVEMENT_PAGES = 100;
+
+  while (hasNextPage && pagesFetched < MAX_MOVEMENT_PAGES) {
+    const response = await admin.graphql(INVENTORY_MOVEMENT_QUERY, {
+      variables: {
+        cursor,
+        query: orderSearchQuery,
+      },
+    });
+
+    const result = await response.json();
+
+    if (result.errors?.length) {
+      throw new Error(
+        `Inventory movement query failed on page ${pagesFetched + 1}: ${
+          result.errors[0].message
+        }`,
+      );
+    }
+
+    if (!result.data?.orders) {
+      throw new Error(
+        `Shopify returned no order data on page ${pagesFetched + 1}.`,
+      );
+    }
+
+    const { nodes, pageInfo } = result.data.orders;
+
+    for (const order of nodes) {
+      if (order.cancelledAt || order.test) {
+        continue;
+      }
+
+      movementOrderCount += 1;
+
+      for (const lineItem of order.lineItems.nodes) {
+        const unitsSold = lineItem.currentQuantity ?? lineItem.quantity ?? 0;
+        const product = lineItem.product;
+
+        if (!product || unitsSold <= 0) {
+          continue;
+        }
+
+        totalUnitsSold += unitsSold;
+
+        const existingMovement = productMovementMap.get(product.id) ?? {
+          productId: product.id,
+          title: product.title,
+          unitsSold: 0,
+        };
+
+        existingMovement.unitsSold += unitsSold;
+        productMovementMap.set(product.id, existingMovement);
+      }
+    }
+
+    pagesFetched += 1;
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  return {
+    movementPeriodDays,
+    movementOrderCount,
+    totalUnitsSold,
+    productMovement: Array.from(productMovementMap.values()).sort(
+      (firstProduct, secondProduct) =>
+        secondProduct.unitsSold - firstProduct.unitsSold ||
+        firstProduct.title.localeCompare(secondProduct.title),
+    ),
+    movementTruncated: hasNextPage,
+  };
+}
 async function fetchInventoryStatistics(admin) {
   let tracked = 0;
   let outOfStock = 0;
@@ -47,6 +174,13 @@ async function fetchInventoryStatistics(admin) {
   let pagesFetched = 0;
 
   const MAX_PAGES = 100;
+  const inventoryMovement = await fetchInventoryMovement(admin);
+  const movementByProductId = new Map(
+  inventoryMovement.productMovement.map((product) => [
+    product.productId,
+    product.unitsSold,
+  ]),
+);
 
   while (hasNextPage && pagesFetched < MAX_PAGES) {
     const response = await admin.graphql(INVENTORY_QUERY, {
@@ -75,6 +209,19 @@ async function fetchInventoryStatistics(admin) {
 
     for (const product of nodes) {
   const quantity = product.totalInventory ?? 0;
+  const unitsSold = movementByProductId.get(product.id) ?? 0;
+const estimatedStartingUnits = quantity + unitsSold;
+const sellThroughRate =
+  estimatedStartingUnits > 0
+    ? Number(((unitsSold / estimatedStartingUnits) * 100).toFixed(1))
+    : 0;
+    const averageDailyUnitsSold =
+  unitsSold / inventoryMovement.movementPeriodDays;
+
+const daysOfStockRemaining =
+  averageDailyUnitsSold > 0
+    ? Math.ceil(quantity / averageDailyUnitsSold)
+    : null;
 
   let inventoryStatus = "Normal Stock";
 
@@ -96,6 +243,9 @@ async function fetchInventoryStatistics(admin) {
   title: product.title,
   productStatus: product.status,
   quantity,
+  unitsSold,
+  daysOfStockRemaining,
+sellThroughRate,
   inventoryStatus,
   vendor: product.vendor,
   productType: product.productType,
@@ -112,6 +262,7 @@ async function fetchInventoryStatistics(admin) {
   }
 
   return {
+      ...inventoryMovement,
     tracked,
     outOfStock,
     lowStock,
@@ -130,6 +281,10 @@ export async function loader({ request }) {
 
 export default function InventoryPage() {
   const {
+        movementPeriodDays,
+    movementOrderCount,
+    totalUnitsSold,
+    productMovement,
     tracked,
     outOfStock,
     lowStock,
@@ -224,6 +379,44 @@ const revalidator = useRevalidator();
       <InventoryHealth products={products} />
       </s-card>
 </s-section>
+<s-section
+  heading={`Inventory Movement — Last ${movementPeriodDays} Days`}
+>
+  <s-card>
+    <s-paragraph>
+      <strong>Completed orders:</strong> {movementOrderCount}
+    </s-paragraph>
+
+    <s-paragraph>
+      <strong>Units sold:</strong> {totalUnitsSold}
+    </s-paragraph>
+
+    <s-paragraph>
+      <strong>Products with sales:</strong> {productMovement.length}
+    </s-paragraph>
+
+{productMovement.length > 0 && (
+  <div>
+    <s-paragraph>
+      <strong>Products Sold</strong>
+    </s-paragraph>
+
+    {productMovement.map((product) => (
+      <s-paragraph key={product.productId}>
+        {product.title}: {product.unitsSold}{" "}
+        {product.unitsSold === 1 ? "unit" : "units"}
+      </s-paragraph>
+    ))}
+  </div>
+)}
+    {productMovement.length === 0 && (
+      <s-paragraph>
+        No completed non-test product sales were recorded during this period.
+      </s-paragraph>
+    )}
+  </s-card>
+</s-section>
+
    <s-section heading="Inventory Summary">
   <s-card>
     <InventorySummary
