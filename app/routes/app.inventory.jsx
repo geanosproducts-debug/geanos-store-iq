@@ -142,6 +142,7 @@ export default function InventoryPage() {
   const [inventoryFilter, setInventoryFilter] = useState("All");
 const [sortOption, setSortOption] = useState("Product A-Z");
 const [lastUpdated] = useState(() => new Date());
+const revalidator = useRevalidator();
  const filteredProducts = products
   .filter((product) => {
     const matchesSearch = product.title
@@ -173,7 +174,11 @@ const [lastUpdated] = useState(() => new Date());
 
     return 0;
   });
- 
+ const needsAttentionCount = products.filter(
+  (product) =>
+    product.inventoryStatus === "Out of Stock" ||
+    product.inventoryStatus === "Low Stock",
+).length;
   return (
     <s-page heading="Inventory Intelligence Dashboard">
       <s-paragraph tone="subdued">
@@ -183,6 +188,12 @@ const [lastUpdated] = useState(() => new Date());
   Refresh Inventory
 </s-button>
       <s-section heading="Search Products">
+        <s-text-field
+  label="Search inventory"
+  value={searchTerm}
+  onInput={(event) => setSearchTerm(event.currentTarget.value)}
+  placeholder="Search by product name..."
+/>
   <s-select
   label="Inventory status"
 
@@ -232,7 +243,7 @@ const [lastUpdated] = useState(() => new Date());
 </s-card>
 </s-section>
 
-    <s-section heading="Needs Attention (3)">
+   <s-section heading={`Needs Attention (${needsAttentionCount})`}>
   <s-card>
 
        <InventoryNeedsAttention

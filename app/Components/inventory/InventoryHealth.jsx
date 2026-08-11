@@ -13,7 +13,8 @@
     (product) => product.inventoryStatus === "High Stock"
   ).length;
 
-  const healthyProducts = totalProducts - outOfStock - lowStock;
+  const healthyProducts =
+  totalProducts - outOfStock - lowStock - highStock;
 
   const healthScore =
     totalProducts === 0

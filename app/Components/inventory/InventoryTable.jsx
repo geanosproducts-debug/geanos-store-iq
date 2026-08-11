@@ -1,6 +1,13 @@
 import { Link } from "react-router";
 
 export default function InventoryTable({ products }) {
+  if (products.length === 0) {
+  return (
+    <s-paragraph>
+      No products match your current search or filter.
+    </s-paragraph>
+  );
+}
 
   return (
     <div style={{ overflowX: "auto" }}>

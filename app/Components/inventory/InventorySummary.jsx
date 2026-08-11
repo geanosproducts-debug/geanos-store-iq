@@ -37,7 +37,7 @@ export default function InventorySummary({
 
       <div style={{ display: "flex", gap: "24px" }}>
         <span style={{ width: "220px" }}>
-          🟢 Healthy Stock (Over 50):
+        🟢 High Stock (Over 50):
         </span>
         <strong>{highStock}</strong>
       </div>
@@ -57,17 +57,7 @@ export default function InventorySummary({
   </s-card>
 </s-section>
            
-          {truncated && (
-            <s-banner tone="warning">
-              <s-paragraph>
-               Inventory scan limit reached.
-
-Only the first 25,000 products could be analysed.
-The figures shown above may not represent your complete inventory.
-              </s-paragraph>
-            </s-banner>
-          )}
-        </s-stack>
+      </s-stack>
       </s-card>
     </s-section>
   );
