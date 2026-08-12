@@ -53,7 +53,7 @@ export async function loader({ request }) {
 
   const orders = [];
   let orderCursor = null;
-  let hasMoreOrders = true;
+  let hasMoreOrders = false;
 
   while (hasMoreOrders) {
     const response = await admin.graphql(
@@ -569,20 +569,8 @@ Priority {index + 1}: {recommendation}
   </s-section>
 <s-section heading="Sales Priorities">
   <s-paragraph>
-    Completed non-test orders in the last 30 days: {recentOrders.length}
-  </s-paragraph>
-
-  <s-paragraph>
-    {recentOrders.length > 0
-      ? `30-day revenue: ${salesCurrency} ${recentRevenue.toFixed(2)}`
-      : "No completed non-test sales were recorded in the last 30 days."}
-  </s-paragraph>
-
-  <s-paragraph>
-    {recentOrders.length > 0
-      ? `Average order value: ${salesCurrency} ${averageOrderValue.toFixed(2)}`
-      : "Sales priority: focus on product readiness, traffic, and conversion activity."}
-  </s-paragraph>
+  Sales data is temporarily unavailable while Shopify order access is being activated.
+</s-paragraph>
 </s-section>
 </s-page>
   );

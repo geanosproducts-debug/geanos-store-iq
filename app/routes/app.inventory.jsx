@@ -174,7 +174,14 @@ async function fetchInventoryStatistics(admin) {
   let pagesFetched = 0;
 
   const MAX_PAGES = 100;
-  const inventoryMovement = await fetchInventoryMovement(admin);
+  const inventoryMovement = {
+  movementPeriodDays: 30,
+  movementOrderCount: 0,
+  totalUnitsSold: 0,
+  productMovement: [],
+  movementTruncated: false,
+  movementDataAvailable: false,
+};
   const movementByProductId = new Map(
   inventoryMovement.productMovement.map((product) => [
     product.productId,
@@ -379,44 +386,15 @@ const revalidator = useRevalidator();
       <InventoryHealth products={products} />
       </s-card>
 </s-section>
-<s-section
-  heading={`Inventory Movement — Last ${movementPeriodDays} Days`}
->
+<s-section heading="Inventory Movement">
   <s-card>
     <s-paragraph>
-      <strong>Completed orders:</strong> {movementOrderCount}
+      Inventory movement data is temporarily unavailable while Shopify order
+      access is being activated.
     </s-paragraph>
-
-    <s-paragraph>
-      <strong>Units sold:</strong> {totalUnitsSold}
-    </s-paragraph>
-
-    <s-paragraph>
-      <strong>Products with sales:</strong> {productMovement.length}
-    </s-paragraph>
-
-{productMovement.length > 0 && (
-  <div>
-    <s-paragraph>
-      <strong>Products Sold</strong>
-    </s-paragraph>
-
-    {productMovement.map((product) => (
-      <s-paragraph key={product.productId}>
-        {product.title}: {product.unitsSold}{" "}
-        {product.unitsSold === 1 ? "unit" : "units"}
-      </s-paragraph>
-    ))}
-  </div>
-)}
-    {productMovement.length === 0 && (
-      <s-paragraph>
-        No completed non-test product sales were recorded during this period.
-      </s-paragraph>
-    )}
   </s-card>
 </s-section>
-
+ 
    <s-section heading="Inventory Summary">
   <s-card>
     <InventorySummary
@@ -447,9 +425,48 @@ const revalidator = useRevalidator();
       )}
     />
   </s-card>
-</s-section>
+<s-section heading="Restock Recommendations">
+  <s-card>
+    <s-paragraph>
+      <strong>Restock now:</strong>{" "}
+      {
+        products.filter(
+          (product) => product.inventoryStatus === "Out of Stock",
+        ).length
+      }{" "}
+      products are out of stock.
+    </s-paragraph>
 
-<s-section heading="Product Inventory Details">
+    <s-paragraph>
+      <strong>Plan next:</strong>{" "}
+      {
+        products.filter(
+          (product) => product.inventoryStatus === "Low Stock",
+        ).length
+      }{" "}
+      products are running low.
+    </s-paragraph>
+    {products
+  .filter((product) => product.inventoryStatus === "Out of Stock")
+  .sort((a, b) => a.title.localeCompare(b.title))
+  .map((product) => (
+    <s-paragraph key={`restock-${product.id}`}>
+      <strong>Restock:</strong> {product.title} — {product.quantity} remaining
+    </s-paragraph>
+  ))}
+
+{products
+  .filter((product) => product.inventoryStatus === "Low Stock")
+  .sort((a, b) => a.title.localeCompare(b.title))
+  
+  .map((product) => (
+    <s-paragraph key={`low-stock-${product.id}`}>
+      <strong>Monitor:</strong> {product.title} — {product.quantity} remaining
+    </s-paragraph>
+  ))}
+  </s-card>
+</s-section>
+<s-section heading="Product Inventory Details"></s-section>
   <s-card>
     <InventoryTable products={filteredProducts} />
 </s-card>
