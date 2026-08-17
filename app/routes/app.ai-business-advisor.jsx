@@ -569,8 +569,22 @@ Priority {index + 1}: {recommendation}
   </s-section>
 <s-section heading="Sales Priorities">
   <s-paragraph>
-  Sales data is temporarily unavailable while Shopify order access is being activated.
-</s-paragraph>
+    {recentOrders.length === 0
+      ? "No completed non-test sales were found in the last 30 days."
+      : `Completed non-test orders in the last 30 days: ${recentOrders.length}.`}
+  </s-paragraph>
+
+  {recentOrders.length > 0 && (
+    <>
+      <s-paragraph>
+        {`Revenue in the last 30 days: ${salesCurrency} ${recentRevenue.toFixed(2)}.`}
+      </s-paragraph>
+
+      <s-paragraph>
+        {`Average order value: ${salesCurrency} ${averageOrderValue.toFixed(2)}.`}
+      </s-paragraph>
+    </>
+  )}
 </s-section>
 </s-page>
   );

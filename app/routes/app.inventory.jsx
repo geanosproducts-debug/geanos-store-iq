@@ -389,8 +389,21 @@ const revalidator = useRevalidator();
 <s-section heading="Inventory Movement">
   <s-card>
     <s-paragraph>
-      Inventory movement data is temporarily unavailable while Shopify order
-      access is being activated.
+      {`Movement period: Last ${movementPeriodDays} days`}
+    </s-paragraph>
+
+    <s-paragraph>
+      {`Completed non-test orders: ${movementOrderCount}`}
+    </s-paragraph>
+
+    <s-paragraph>
+      {`Total units sold: ${totalUnitsSold}`}
+    </s-paragraph>
+
+    <s-paragraph>
+      {`Products with sales movement: ${
+        productMovement.filter((product) => product.unitsSold > 0).length
+      }`}
     </s-paragraph>
   </s-card>
 </s-section>
