@@ -23,6 +23,16 @@ priorities and recommended next actions.
     Open Seasonal & Marketing Intelligence
   </s-button>
 </s-section>
+<s-section heading="Reporting Centre">
+  <s-paragraph>
+    Package Store IQ analysis into weekly, monthly, quarterly, and
+    annual business reports with executive summaries.
+  </s-paragraph>
+
+  <s-button href="/app/reporting-centre">
+    Open Reporting Centre
+  </s-button>
+</s-section>
     </s-page>
   );
 }
