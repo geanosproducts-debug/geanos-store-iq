@@ -181,6 +181,33 @@ const highStockProducts = trackedProducts.filter(
   (product) => (product.totalInventory ?? 0) >= 50,
 );
 
+const missingDescriptionProducts = activeProducts.filter(
+  (product) => !product.description?.trim(),
+);
+
+const missingImageProducts = activeProducts.filter(
+  (product) => !product.featuredMedia,
+);
+
+const missingImageAltProducts = activeProducts.filter(
+  (product) =>
+    product.featuredMedia && !product.featuredMedia.alt?.trim(),
+);
+
+const missingVendorProducts = activeProducts.filter(
+  (product) => !product.vendor?.trim(),
+);
+
+const missingProductTypeProducts = activeProducts.filter(
+  (product) => !product.productType?.trim(),
+);
+
+const staleProducts = activeProducts.filter(
+  (product) =>
+    Date.now() - new Date(product.updatedAt).getTime() >
+    90 * 24 * 60 * 60 * 1000,
+);
+
 const validOrders = orders.filter(
   (order) => !order.test && !order.cancelledAt,
 );
@@ -264,7 +291,53 @@ const formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-AU", {
           </s-paragraph>
         </div>
       </s-section>
-     <s-section heading={`${selectedPeriod} Sales Summary`}>
+    <s-section heading={`${selectedPeriod} Executive Summary`}>
+  <s-paragraph>
+    This report covers the calendar period from{" "}
+    <strong>{formatReportDate(reportStartDate)}</strong> to{" "}
+    <strong>{formatReportDate(reportEndDate)}</strong> using live Store IQ
+    data.
+  </s-paragraph>
+
+  <s-paragraph>
+    Sales performance: <strong>{reportOrders.length}</strong> completed
+    non-test orders generated{" "}
+    <strong>
+      {new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: reportCurrency,
+      }).format(reportRevenue)}
+    </strong>{" "}
+    in revenue.
+  </s-paragraph>
+
+  <s-paragraph>
+    Inventory position: <strong>{trackedProducts.length}</strong> active
+    products are inventory-tracked, with{" "}
+    <strong>{totalInventory}</strong> total units available.{" "}
+    <strong>{outOfStockProducts.length}</strong> products are out of stock
+    and <strong>{lowStockProducts.length}</strong> are low in stock.
+  </s-paragraph>
+
+  <s-paragraph>
+    Product health:{" "}
+    <strong>{missingDescriptionProducts.length}</strong> products are missing
+    descriptions, <strong>{missingImageProducts.length}</strong> are missing
+    featured images, and{" "}
+    <strong>{missingProductTypeProducts.length}</strong> are missing product
+    types.
+  </s-paragraph>
+
+  <s-paragraph>
+    <strong>Recommended focus: </strong>
+    {reportOrders.length === 0
+      ? "Prioritise qualified traffic and conversion activity while resolving the most important inventory and product-quality issues."
+      : outOfStockProducts.length > 0
+        ? "Review out-of-stock products first, then use the sales results to guide replenishment and promotion decisions."
+        : "Use the sales results to strengthen successful products while continuing to improve product information and inventory coverage."}
+  </s-paragraph>
+</s-section> 
+<s-section heading={`${selectedPeriod} Sales Summary`}>
   <s-paragraph>
     Active products: <strong>{activeProducts.length}</strong>
   </s-paragraph>
@@ -287,6 +360,7 @@ const formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-AU", {
 
   <s-paragraph>
     High-stock products: <strong>{highStockProducts.length}</strong>
+    
   </s-paragraph>
 </s-section>
       <s-section heading={`${selectedPeriod} Sales Summary`}>
