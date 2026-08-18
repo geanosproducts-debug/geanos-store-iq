@@ -303,7 +303,7 @@ const formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-AU", {
     ],
     [
       { value: "Total available inventory" },
-      { value: totalInventory, type: Number },
+     { value: totalInventory, type: Number, format: "#,##0" },
     ],
     [
       { value: "Out-of-stock products" },
@@ -417,8 +417,10 @@ const exportToPdf = () => {
     `${reportOrders.length} completed non-test orders generated ${formattedRevenue} in revenue during this reporting period.`,
   );
 
-  addText(
-    `${trackedProducts.length} active products are inventory-tracked, with ${totalInventory} total units available. ${outOfStockProducts.length} products are out of stock and ${lowStockProducts.length} are low in stock.`,
+ addText(
+  `${trackedProducts.length} active products are inventory-tracked, with ${totalInventory.toLocaleString("en-AU")} total units available. ${outOfStockProducts.length} products are out of stock and ${lowStockProducts.length} ${
+    lowStockProducts.length === 1 ? "is" : "are"
+  } low in stock.`,
   );
 
   addText(
@@ -446,7 +448,9 @@ verticalPosition = 18;
 
   addText(`Active products: ${activeProducts.length}`);
   addText(`Inventory-tracked products: ${trackedProducts.length}`);
-  addText(`Total available inventory: ${totalInventory}`);
+  addText(
+  `Total available inventory: ${totalInventory.toLocaleString("en-AU")}`,
+);
   addText(`Out-of-stock products: ${outOfStockProducts.length}`);
   addText(`Low-stock products: ${lowStockProducts.length}`);
   addText(`High-stock products: ${highStockProducts.length}`, {
@@ -552,12 +556,14 @@ return (
   </s-paragraph>
 
   <s-paragraph>
-    Inventory position: <strong>{trackedProducts.length}</strong> active
-    products are inventory-tracked, with{" "}
-    <strong>{totalInventory}</strong> total units available.{" "}
-    <strong>{outOfStockProducts.length}</strong> products are out of stock
-    and <strong>{lowStockProducts.length}</strong> are low in stock.
-  </s-paragraph>
+  Inventory position: <strong>{trackedProducts.length}</strong> active
+  products are inventory-tracked, with{" "}
+  <strong>{totalInventory.toLocaleString("en-AU")}</strong> total units
+  available.{" "}
+  <strong>{outOfStockProducts.length}</strong> products are out of stock
+  and <strong>{lowStockProducts.length}</strong>{" "}
+  {lowStockProducts.length === 1 ? "is" : "are"} low in stock.
+</s-paragraph>
 
   <s-paragraph>
     Product health:{" "}
@@ -587,7 +593,8 @@ return (
   </s-paragraph>
 
   <s-paragraph>
-    Total available inventory: <strong>{totalInventory}</strong>
+Total available inventory:{" "}
+<strong>{totalInventory.toLocaleString("en-AU")}</strong>
   </s-paragraph>
 
   <s-paragraph>
