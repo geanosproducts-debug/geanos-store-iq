@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import writeExcelFile from "write-excel-file/browser";
+import { jsPDF } from "jspdf";
 export async function loader({ request }) {
   const { admin } = await authenticate.admin(request);
 
@@ -238,7 +240,245 @@ const formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-AU", {
   timeStyle: "short",
 });
 
-  return (
+ const exportToExcel = async () => {
+  const reportRows = [
+    [
+      {
+        value: "GEANOS Store IQ Business Report",
+        fontWeight: "bold",
+        fontSize: 16,
+      },
+      { value: "" },
+    ],
+    [
+      { value: "Reporting period", fontWeight: "bold" },
+      { value: selectedPeriod },
+    ],
+    [
+      { value: "Report dates", fontWeight: "bold" },
+      {
+        value: `${formatReportDate(reportStartDate)} to ${formatReportDate(
+          reportEndDate,
+        )}`,
+      },
+    ],
+    [
+      { value: "Report generated", fontWeight: "bold" },
+      { value: formattedGeneratedAt },
+    ],
+    [{ value: "" }, { value: "" }],
+    [
+      {
+        value: "Sales Summary",
+        fontWeight: "bold",
+        backgroundColor: "#E8F0FE",
+      },
+      { value: "" },
+    ],
+    [
+      { value: "Completed non-test orders" },
+      { value: reportOrders.length, type: Number },
+    ],
+    [
+      { value: `Revenue (${reportCurrency})` },
+      { value: reportRevenue, type: Number },
+    ],
+    [
+      { value: `Average order value (${reportCurrency})` },
+      { value: averageOrderValue, type: Number },
+    ],
+    [{ value: "" }, { value: "" }],
+    [
+      {
+        value: "Current Inventory Snapshot",
+        fontWeight: "bold",
+        backgroundColor: "#E8F0FE",
+      },
+      { value: "" },
+    ],
+    [{ value: "Active products" }, { value: activeProducts.length, type: Number }],
+    [
+      { value: "Inventory-tracked products" },
+      { value: trackedProducts.length, type: Number },
+    ],
+    [
+      { value: "Total available inventory" },
+      { value: totalInventory, type: Number },
+    ],
+    [
+      { value: "Out-of-stock products" },
+      { value: outOfStockProducts.length, type: Number },
+    ],
+    [
+      { value: "Low-stock products" },
+      { value: lowStockProducts.length, type: Number },
+    ],
+    [
+      { value: "High-stock products" },
+      { value: highStockProducts.length, type: Number },
+    ],
+    [{ value: "" }, { value: "" }],
+    [
+      {
+        value: "Product Health Summary",
+        fontWeight: "bold",
+        backgroundColor: "#E8F0FE",
+      },
+      { value: "" },
+    ],
+    [
+      { value: "Products missing descriptions" },
+      { value: missingDescriptionProducts.length, type: Number },
+    ],
+    [
+      { value: "Products missing featured images" },
+      { value: missingImageProducts.length, type: Number },
+    ],
+    [
+      { value: "Featured images missing alt text" },
+      { value: missingImageAltProducts.length, type: Number },
+    ],
+    [
+      { value: "Products missing vendors" },
+      { value: missingVendorProducts.length, type: Number },
+    ],
+    [
+      { value: "Products missing product types" },
+      { value: missingProductTypeProducts.length, type: Number },
+    ],
+    [
+      { value: "Products not updated within 90 days" },
+      { value: staleProducts.length, type: Number },
+    ],
+  ];
+
+  const fileDate = reportEndDate.toISOString().slice(0, 10);
+  const fileName = `GEANOS ${selectedPeriod} Report ${fileDate}.xlsx`;
+
+  await writeExcelFile(reportRows, {
+    columns: [{ width: 38 }, { width: 32 }],
+  }).toFile(fileName);
+};
+const exportToPdf = () => {
+  const document = new jsPDF();
+  const pageWidth = document.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - 30;
+  let verticalPosition = 18;
+
+  const addText = (
+    text,
+    { bold = false, size = 11, gap = 7 } = {},
+  ) => {
+    document.setFont("helvetica", bold ? "bold" : "normal");
+    document.setFontSize(size);
+
+    const lines = document.splitTextToSize(String(text), contentWidth);
+    const requiredHeight = lines.length * 6 + gap;
+
+    if (verticalPosition + requiredHeight > 280) {
+      document.addPage();
+      verticalPosition = 18;
+    }
+
+    document.text(lines, 15, verticalPosition);
+    verticalPosition += requiredHeight;
+  };
+
+  const formattedRevenue = new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: reportCurrency,
+  }).format(reportRevenue);
+
+  const formattedAverageOrderValue = new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: reportCurrency,
+  }).format(averageOrderValue);
+
+  addText("GEANOS Store IQ Business Report", {
+    bold: true,
+    size: 18,
+    gap: 10,
+  });
+
+  addText(`Reporting period: ${selectedPeriod}`, { bold: true });
+  addText(
+    `Report dates: ${formatReportDate(
+      reportStartDate,
+    )} to ${formatReportDate(reportEndDate)}`,
+  );
+  addText(`Report generated: ${formattedGeneratedAt}`, { gap: 10 });
+
+  addText("Executive Summary", {
+    bold: true,
+    size: 14,
+  });
+
+  addText(
+    `${reportOrders.length} completed non-test orders generated ${formattedRevenue} in revenue during this reporting period.`,
+  );
+
+  addText(
+    `${trackedProducts.length} active products are inventory-tracked, with ${totalInventory} total units available. ${outOfStockProducts.length} products are out of stock and ${lowStockProducts.length} are low in stock.`,
+  );
+
+  addText(
+    `${missingDescriptionProducts.length} products are missing descriptions, ${missingImageProducts.length} are missing featured images, and ${missingProductTypeProducts.length} are missing product types.`,
+    { gap: 10 },
+  );
+
+  addText("Sales Summary", {
+    bold: true,
+    size: 14,
+  });
+
+  addText(`Completed non-test orders: ${reportOrders.length}`);
+  addText(`Revenue: ${formattedRevenue}`);
+  addText(`Average order value: ${formattedAverageOrderValue}`, {
+    gap: 10,
+  });
+document.addPage();
+verticalPosition = 18;
+
+  addText("Current Inventory Snapshot", {
+    bold: true,
+    size: 14,
+  });
+
+  addText(`Active products: ${activeProducts.length}`);
+  addText(`Inventory-tracked products: ${trackedProducts.length}`);
+  addText(`Total available inventory: ${totalInventory}`);
+  addText(`Out-of-stock products: ${outOfStockProducts.length}`);
+  addText(`Low-stock products: ${lowStockProducts.length}`);
+  addText(`High-stock products: ${highStockProducts.length}`, {
+    gap: 10,
+  });
+
+  addText("Product Health Summary", {
+    bold: true,
+    size: 14,
+  });
+
+  addText(
+    `Products missing descriptions: ${missingDescriptionProducts.length}`,
+  );
+  addText(
+    `Products missing featured images: ${missingImageProducts.length}`,
+  );
+  addText(
+    `Featured images missing alt text: ${missingImageAltProducts.length}`,
+  );
+  addText(`Products missing vendors: ${missingVendorProducts.length}`);
+  addText(
+    `Products missing product types: ${missingProductTypeProducts.length}`,
+  );
+  addText(`Products not updated within 90 days: ${staleProducts.length}`);
+
+  const fileDate = reportEndDate.toISOString().slice(0, 10);
+  const fileName = `GEANOS ${selectedPeriod} Report ${fileDate}.pdf`;
+
+  document.save(fileName);
+};
+return (
     <s-page heading="Reporting Centre">
       <s-section heading="Business Reports">
         <s-paragraph>
@@ -398,6 +638,12 @@ const formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-AU", {
           Reports will include executive summaries and options to export to
           PDF and Excel.
         </s-paragraph>
+        <s-button onClick={exportToExcel}>
+  Export to Excel
+</s-button>
+<s-button onClick={exportToPdf}>
+  Export to PDF
+</s-button>
       </s-section>
     </s-page>
   );
