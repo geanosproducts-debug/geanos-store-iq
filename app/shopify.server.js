@@ -18,7 +18,7 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.SingleMerchant,
   logger: {
-    level: LogSeverity.Info,
+    level: LogSeverity.Debug,
 },
   future: {
   expiringOfflineAccessTokens: true,
