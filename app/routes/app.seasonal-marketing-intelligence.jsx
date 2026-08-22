@@ -407,6 +407,9 @@ export default function SeasonalMarketingIntelligence() {
 
   return (
     <s-page heading="Seasonal & Marketing Intelligence">
+            <s-button href="/app/action-strategy" variant="tertiary">
+        ← Back to Action & Strategy
+      </s-button>
       <s-section heading="Phase 5 Overview">
         <s-paragraph>
           Plan ahead by identifying seasonal

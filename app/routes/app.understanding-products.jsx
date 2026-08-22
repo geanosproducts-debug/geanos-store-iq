@@ -246,6 +246,9 @@ const adequatelyStockedProducts = products.filter(
 const adequatelyStockedProductCount = adequatelyStockedProducts.length;
   return (
     <s-page heading="Understanding the Products">
+         <s-button href="/app/business-analysis" variant="tertiary">
+        ← Back to Business Analysis
+      </s-button>
       <s-section heading="Product Understanding Overview">
         <s-paragraph>
           Analyse your Shopify products to understand their performance,

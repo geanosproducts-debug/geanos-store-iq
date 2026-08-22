@@ -259,6 +259,9 @@ if (highStockProducts.length > 0) {
 }
   return (
     <s-page heading="AI Business Advisor">
+          <s-button href="/app/action-strategy" variant="tertiary">
+        ← Back to Action & Strategy
+      </s-button>
       <s-section heading="Business Recommendations">
         <s-paragraph>
   <strong>HOW TO READ THESE PRIORITIES</strong>

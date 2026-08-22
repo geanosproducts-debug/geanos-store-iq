@@ -484,6 +484,9 @@ verticalPosition = 18;
 };
 return (
     <s-page heading="Reporting Centre">
+            <s-button href="/app/action-strategy" variant="tertiary">
+        ← Back to Action & Strategy
+      </s-button>
       <s-section heading="Business Reports">
         <s-paragraph>
           Create clear business reports using the analysis and intelligence

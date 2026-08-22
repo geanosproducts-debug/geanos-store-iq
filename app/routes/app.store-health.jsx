@@ -170,6 +170,9 @@ export default function StoreHealthPage() {
 }, [fetcher.data, shopify]);
   return (
     <s-page heading="Store Health & SEO Bot">
+           <s-button href="/app/store-overview" variant="tertiary">
+        ← Back to Store Overview
+      </s-button>
      <s-button
   slot="primary-action"
   loading={fetcher.state !== "idle"}

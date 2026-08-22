@@ -341,14 +341,20 @@ const revalidator = useRevalidator();
     product.inventoryStatus === "Out of Stock" ||
     product.inventoryStatus === "Low Stock",
 ).length;
-  return (
+    return (
     <s-page heading="Inventory Intelligence Dashboard">
+      <s-button href="/app/store-overview" variant="tertiary">
+        ← Back to Store Overview
+      </s-button>
+
       <s-paragraph tone="subdued">
-  Last updated: {lastUpdated.toLocaleString()}
-</s-paragraph>
-<s-button onClick={() => revalidator.revalidate()}>
-  Refresh Inventory
-</s-button>
+        Last updated: {lastUpdated.toLocaleString()}
+      </s-paragraph>
+
+      <s-button onClick={() => revalidator.revalidate()}>
+        Refresh Inventory
+      </s-button>
+
       <s-section heading="Search Products">
         <s-text-field
   label="Search inventory"
