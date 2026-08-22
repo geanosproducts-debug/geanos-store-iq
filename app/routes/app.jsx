@@ -14,7 +14,7 @@ export default function App() {
   const { apiKey } = useLoaderData();
 
   return (
-    <AppProvider embedded apiKey={apiKey}>
+    <AppProvider apiKey={apiKey}>
      <s-app-nav>
    <s-link href="/app" rel="home">Dashboard</s-link>
    <s-link href="/app/store-overview">Store Overview</s-link>
