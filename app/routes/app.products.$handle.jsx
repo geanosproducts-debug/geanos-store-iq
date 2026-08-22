@@ -60,6 +60,9 @@ const shopifyInventoryUrl =
 
   return (
   <s-page heading="Product Intelligence">
+        <s-button href="/app/inventory" variant="tertiary">
+      ← Back to Inventory Intelligence
+    </s-button>
     <s-section heading="Product Overview">
       <s-card padding="base">
      <s-grid gridTemplateColumns="280px 1fr" gap="base">
