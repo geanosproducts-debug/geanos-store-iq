@@ -1,5 +1,4 @@
 import "@shopify/shopify-app-react-router/adapters/node";
-import { createHash } from "crypto";
 import {
   ApiVersion,
   AppDistribution,
@@ -8,15 +7,6 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
-const runtimeSecret = process.env.SHOPIFY_API_SECRET ?? "";
-const runtimeSecretHash = createHash("sha256")
-  .update(runtimeSecret)
-  .digest("hex");
-const runtimeSecretBytes = Buffer.byteLength(runtimeSecret, "utf8");
-
-console.log(
-  `[STARTUP] SHOPIFY_API_SECRET sha256=${runtimeSecretHash} bytes=${runtimeSecretBytes}`,
-);
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -28,7 +18,7 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.SingleMerchant,
   logger: {
-    level: LogSeverity.Debug,
+    level: LogSeverity.Level,
 },
   future: {
   expiringOfflineAccessTokens: true,
