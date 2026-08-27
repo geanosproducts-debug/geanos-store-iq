@@ -7,6 +7,9 @@ export default function PhotoCleanup() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [error, setError] = useState("");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const [analysisStarted, setAnalysisStarted] = useState(false);
+  const [processingChoice, setProcessingChoice] = useState("both");
+  const [sourceLanguage, setSourceLanguage] = useState("auto");
 
   useEffect(() => {
     return () => {
@@ -56,6 +59,7 @@ export default function PhotoCleanup() {
     setPreviewUrl("");
     setError("");
     setRightsConfirmed(false);
+setAnalysisStarted(false);
   }
 
   return (
@@ -134,12 +138,84 @@ in my store or stores only.
         </s-unordered-list>
 
         <s-button
-          variant="primary"
-          disabled={!selectedFile || !rightsConfirmed}
-        >
-          Analyse Photo - Next Build
-        </s-button>
+  variant="primary"
+  disabled={!selectedFile || !rightsConfirmed}
+  onClick={() => setAnalysisStarted(true)}
+>
+  Analyse Photo
+</s-button>
       </s-section>
+{analysisStarted && selectedFile && (
+  <s-section heading="Photo Analysis Setup">
+    <s-banner tone="success">
+      Photo accepted. Choose the work required before processing begins.
+    </s-banner>
+
+    <s-paragraph>
+      Selected photo: {selectedFile.name}
+    </s-paragraph>
+
+    <label>
+      Original language
+      <br />
+      <select
+        value={sourceLanguage}
+        onChange={(event) => setSourceLanguage(event.target.value)}
+      >
+        <option value="auto">Detect automatically</option>
+        <option value="chinese">Chinese</option>
+        <option value="japanese">Japanese</option>
+        <option value="korean">Korean</option>
+        <option value="other">Other language</option>
+      </select>
+    </label>
+
+    <fieldset>
+      <legend>Choose the required processing</legend>
+
+      <label>
+        <input
+          type="radio"
+          name="processingChoice"
+          value="translate"
+          checked={processingChoice === "translate"}
+          onChange={(event) => setProcessingChoice(event.target.value)}
+        />{" "}
+        Detect and translate visible text into English
+      </label>
+
+      <br />
+
+      <label>
+        <input
+          type="radio"
+          name="processingChoice"
+          value="cleanup"
+          checked={processingChoice === "cleanup"}
+          onChange={(event) => setProcessingChoice(event.target.value)}
+        />{" "}
+        Remove authorised watermarks or overlays
+      </label>
+
+      <br />
+
+      <label>
+        <input
+          type="radio"
+          name="processingChoice"
+          value="both"
+          checked={processingChoice === "both"}
+          onChange={(event) => setProcessingChoice(event.target.value)}
+        />{" "}
+        Translate visible text and remove authorised overlays
+      </label>
+    </fieldset>
+
+    <s-button variant="primary" disabled>
+      Start Photo Analysis - Next Build
+    </s-button>
+  </s-section>
+)}
     </s-page>
   );
 }
