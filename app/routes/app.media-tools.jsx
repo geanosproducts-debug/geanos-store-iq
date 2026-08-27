@@ -33,9 +33,9 @@ export default function MediaTools() {
           <s-list-item>Download the completed image</s-list-item>
         </s-unordered-list>
 
-        <s-button disabled>
-          Photo Tool - Next Build
-        </s-button>
+        <s-button href="/app/photo-cleanup" variant="primary">
+  Open Photo Translator & Cleanup
+</s-button>
       </s-section>
 
       <s-section heading="Video Translator & Cleanup">
