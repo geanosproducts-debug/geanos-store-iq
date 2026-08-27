@@ -363,7 +363,7 @@ useEffect(() => {
   >
     Rescan Products
   </s-button>
-  <s-button variant="primary" href="/app/products">
+  <s-button variant="primary" href="shopify:admin/products">
   Edit Products
 </s-button>
 </s-stack>
