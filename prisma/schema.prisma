@@ -53,6 +53,7 @@ model MediaCreditTransaction {
   type              String
   amount            Int
   processingType    String?
+  status            String             @default("completed")
   requestId         String?            @unique
   externalReference String?            @unique
   createdAt         DateTime           @default(now())
