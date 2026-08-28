@@ -274,6 +274,11 @@ in my store or stores only.
   Removal first. Then upload the cleaned photo again and use the Translate
   Visible Text option.
 </s-paragraph>
+<s-banner>
+  Each successfully completed processing run uses 1 photo credit.
+  Watermark removal and translation are separate processes and use 1 credit
+  each. Failed processing attempts do not use a credit.
+</s-banner>
 <s-paragraph>
   Uploaded and completed photos are not saved in the GEANOS Store IQ
   database. Download the completed photo before leaving or refreshing this

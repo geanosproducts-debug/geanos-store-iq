@@ -14,21 +14,50 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model MediaCreditAccount {
+  id                String                   @id @default(cuid())
+  shop              String                   @unique
+  balance           Int                      @default(0)
+  monthlyAllowance  Int                      @default(0)
+  rolloverEnabled   Boolean                  @default(true)
+  lifetimePurchased Int                      @default(0)
+  lifetimeUsed      Int                      @default(0)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  transactions      MediaCreditTransaction[]
+}
+
+model MediaCreditTransaction {
+  id                String             @id @default(cuid())
+  accountId         String
+  shop              String
+  type              String
+  amount            Int
+  processingType    String?
+  requestId         String?            @unique
+  externalReference String?            @unique
+  createdAt         DateTime           @default(now())
+  account           MediaCreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([shop, createdAt])
+  @@index([accountId, createdAt])
 }
