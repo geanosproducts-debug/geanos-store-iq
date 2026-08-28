@@ -72,12 +72,10 @@ export async function action({ request }) {
   } catch (error) {
     console.error("Photo processing failed:", error);
 
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "The photo could not be processed.",
-    };
+   return {
+  error:
+    "The photo could not be processed. Please try again. If the problem continues, contact support.",
+};
   }
 }
 
@@ -260,6 +258,11 @@ in my store or stores only.
   Removal first. Then upload the cleaned photo again and use the Translate
   Visible Text option.
 </s-paragraph>
+<s-paragraph>
+  Uploaded and completed photos are not saved in the GEANOS Store IQ
+  database. Download the completed photo before leaving or refreshing this
+  page.
+</s-paragraph>
     <s-paragraph>
       Selected photo: {selectedFile.name}
     </s-paragraph>
@@ -332,17 +335,44 @@ in my store or stores only.
       downloading it.
     </s-banner>
 
+   <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "20px",
+    marginTop: "16px",
+  }}
+>
+  <div>
+    <h3>Before</h3>
     <img
-      src={completedImageUrl}
-      alt="Completed translated and cleaned product"
+      src={previewUrl}
+      alt="Original uploaded product"
       style={{
         display: "block",
-        maxWidth: "100%",
+        width: "100%",
         maxHeight: "600px",
-        marginTop: "16px",
+        objectFit: "contain",
         borderRadius: "8px",
       }}
     />
+  </div>
+
+  <div>
+    <h3>After</h3>
+    <img
+      src={completedImageUrl}
+      alt="Completed translated or cleaned product"
+      style={{
+        display: "block",
+        width: "100%",
+        maxHeight: "600px",
+        objectFit: "contain",
+        borderRadius: "8px",
+      }}
+    />
+  </div>
+</div>
 
     <p>
       <a
