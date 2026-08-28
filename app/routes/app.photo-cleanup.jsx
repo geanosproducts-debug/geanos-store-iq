@@ -1,6 +1,85 @@
 import { useEffect, useState } from "react";
+import { useFetcher } from "react-router";
+import { authenticate } from "../shopify.server";
+import { processPhoto } from "../services/photo-processor.server";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+export async function action({ request }) {
+  await authenticate.admin(request);
+
+  const formData = await request.formData();
+  const imageFile = formData.get("image");
+  const rightsConfirmed = formData.get("rightsConfirmed");
+  const processingChoice = formData.get("processingChoice");
+  const sourceLanguage = formData.get("sourceLanguage");
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  const allowedChoices = ["translate", "cleanup", "both"];
+  const allowedLanguages = [
+    "auto",
+    "chinese",
+    "japanese",
+    "korean",
+    "other",
+  ];
+
+  if (rightsConfirmed !== "true") {
+    return {
+      error: "Content-rights confirmation is required before processing.",
+    };
+  }
+
+  if (!imageFile || typeof imageFile.arrayBuffer !== "function") {
+    return {
+      error: "Please upload a valid image.",
+    };
+  }
+
+  if (!allowedTypes.includes(imageFile.type)) {
+    return {
+      error: "The uploaded image must be JPG, PNG or WEBP.",
+    };
+  }
+
+  if (imageFile.size > MAX_FILE_SIZE) {
+    return {
+      error: "The uploaded image must be 20 MB or smaller.",
+    };
+  }
+
+  if (!allowedChoices.includes(processingChoice)) {
+    return {
+      error: "Please select a valid processing option.",
+    };
+  }
+
+  if (!allowedLanguages.includes(sourceLanguage)) {
+    return {
+      error: "Please select a valid source language.",
+    };
+  }
+
+  try {
+    const result = await processPhoto({
+      imageFile,
+      processingChoice,
+      sourceLanguage,
+    });
+
+    return {
+      completedImageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
+    };
+  } catch (error) {
+    console.error("Photo processing failed:", error);
+
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "The photo could not be processed.",
+    };
+  }
+}
 
 export default function PhotoCleanup() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -10,6 +89,10 @@ export default function PhotoCleanup() {
   const [analysisStarted, setAnalysisStarted] = useState(false);
   const [processingChoice, setProcessingChoice] = useState("both");
   const [sourceLanguage, setSourceLanguage] = useState("auto");
+const fetcher = useFetcher();
+const isProcessing = fetcher.state !== "idle";
+const completedImageUrl = fetcher.data?.completedImageUrl;
+const processingError = fetcher.data?.error;
 
   useEffect(() => {
     return () => {
@@ -61,6 +144,23 @@ export default function PhotoCleanup() {
     setRightsConfirmed(false);
 setAnalysisStarted(false);
   }
+function startPhotoAnalysis() {
+  if (!selectedFile || !rightsConfirmed || isProcessing) {
+    return;
+  }
+
+  const formData = new FormData();
+
+  formData.append("image", selectedFile);
+  formData.append("rightsConfirmed", "true");
+  formData.append("processingChoice", processingChoice);
+  formData.append("sourceLanguage", sourceLanguage);
+
+  fetcher.submit(formData, {
+    method: "post",
+    encType: "multipart/form-data",
+  });
+}
 
   return (
     <s-page heading="Photo Translator & Cleanup">
@@ -211,9 +311,50 @@ in my store or stores only.
       </label>
     </fieldset>
 
-    <s-button variant="primary" disabled>
-      Start Photo Analysis - Next Build
-    </s-button>
+   <s-button
+  variant="primary"
+  disabled={isProcessing}
+  onClick={startPhotoAnalysis}
+>
+  {isProcessing ? "Processing Photo..." : "Start Photo Analysis"}
+</s-button>
+  </s-section>
+)}
+{processingError && (
+  <s-section heading="Photo Processing Error">
+    <s-banner tone="critical">
+      {processingError}
+    </s-banner>
+  </s-section>
+)}
+
+{completedImageUrl && (
+  <s-section heading="Completed Photo">
+    <s-banner tone="success">
+      Photo processing completed successfully. Review the result before
+      downloading it.
+    </s-banner>
+
+    <img
+      src={completedImageUrl}
+      alt="Completed translated and cleaned product"
+      style={{
+        display: "block",
+        maxWidth: "100%",
+        maxHeight: "600px",
+        marginTop: "16px",
+        borderRadius: "8px",
+      }}
+    />
+
+    <p>
+      <a
+        href={completedImageUrl}
+        download="GEANOS-completed-photo.png"
+      >
+        Download Completed Photo
+      </a>
+    </p>
   </s-section>
 )}
     </s-page>
