@@ -89,8 +89,8 @@ export default function PhotoCleanup() {
   const [sourceLanguage, setSourceLanguage] = useState("auto");
 const fetcher = useFetcher();
 const isProcessing = fetcher.state !== "idle";
-const completedImageUrl = fetcher.data?.completedImageUrl;
-const processingError = fetcher.data?.error;
+const [completedImageUrl, setCompletedImageUrl] = useState("");
+const [processingError, setProcessingError] = useState("");
 
   useEffect(() => {
     return () => {
@@ -100,10 +100,24 @@ const processingError = fetcher.data?.error;
     };
   }, [previewUrl]);
 
+useEffect(() => {
+  if (fetcher.data?.completedImageUrl) {
+    setCompletedImageUrl(fetcher.data.completedImageUrl);
+    setProcessingError("");
+  } else if (fetcher.data?.error) {
+    setProcessingError(fetcher.data.error);
+    setCompletedImageUrl("");
+  }
+}, [fetcher.data]);
+
   function handleFileChange(event) {
     const file = event.target.files?.[0];
 
     setError("");
+setCompletedImageUrl("");
+setProcessingError("");
+setAnalysisStarted(false);
+setRightsConfirmed(false);
 
     if (!file) {
       setSelectedFile(null);
@@ -141,6 +155,8 @@ const processingError = fetcher.data?.error;
     setError("");
     setRightsConfirmed(false);
 setAnalysisStarted(false);
+setCompletedImageUrl("");
+setProcessingError("");
   }
 function startPhotoAnalysis() {
   if (!selectedFile || !rightsConfirmed || isProcessing) {
@@ -382,6 +398,9 @@ in my store or stores only.
         Download Completed Photo
       </a>
     </p>
+<s-button onClick={clearImage}>
+  Process Another Photo
+</s-button>
   </s-section>
 )}
     </s-page>
