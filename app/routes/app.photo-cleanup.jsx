@@ -14,7 +14,7 @@ export async function action({ request }) {
   const sourceLanguage = formData.get("sourceLanguage");
 
   const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-  const allowedChoices = ["translate", "cleanup", "both"];
+  const allowedChoices = ["translate", "cleanup"];
   const allowedLanguages = [
     "auto",
     "chinese",
@@ -87,7 +87,7 @@ export default function PhotoCleanup() {
   const [error, setError] = useState("");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [analysisStarted, setAnalysisStarted] = useState(false);
-  const [processingChoice, setProcessingChoice] = useState("both");
+  const [processingChoice, setProcessingChoice] = useState("translate");
   const [sourceLanguage, setSourceLanguage] = useState("auto");
 const fetcher = useFetcher();
 const isProcessing = fetcher.state !== "idle";
@@ -250,7 +250,16 @@ in my store or stores only.
     <s-banner tone="success">
       Photo accepted. Choose the work required before processing begins.
     </s-banner>
+<s-banner tone="warning">
+  Processing can take up to 1–2 minutes. Please keep this page open and
+  click Start Photo Analysis only once.
+</s-banner>
 
+<s-paragraph>
+  For best results when both services are required, complete Watermark
+  Removal first. Then upload the cleaned photo again and use the Translate
+  Visible Text option.
+</s-paragraph>
     <s-paragraph>
       Selected photo: {selectedFile.name}
     </s-paragraph>
@@ -297,19 +306,7 @@ in my store or stores only.
         Remove authorised watermarks or overlays
       </label>
 
-      <br />
-
-      <label>
-        <input
-          type="radio"
-          name="processingChoice"
-          value="both"
-          checked={processingChoice === "both"}
-          onChange={(event) => setProcessingChoice(event.target.value)}
-        />{" "}
-        Translate visible text and remove authorised overlays
-      </label>
-    </fieldset>
+         </fieldset>
 
    <s-button
   variant="primary"
