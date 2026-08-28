@@ -1,17 +1,33 @@
 import { useEffect, useState } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { processPhoto } from "../services/photo-processor.server";
+import {
+  completeMediaCredit,
+  getMediaCreditAccount,
+  InsufficientMediaCreditsError,
+  refundMediaCredit,
+  reserveMediaCredit,
+} from "../services/media-credits.server";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const account = await getMediaCreditAccount(session.shop);
+
+  return {
+    creditBalance: account.balance,
+  };
+}
 export async function action({ request }) {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
 
   const formData = await request.formData();
   const imageFile = formData.get("image");
   const rightsConfirmed = formData.get("rightsConfirmed");
   const processingChoice = formData.get("processingChoice");
   const sourceLanguage = formData.get("sourceLanguage");
+const requestId = formData.get("requestId");
 
   const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
   const allowedChoices = ["translate", "cleanup"];
@@ -22,7 +38,11 @@ export async function action({ request }) {
     "korean",
     "other",
   ];
-
+if (!requestId) {
+  return {
+    error: "A photo-processing request ID is required.",
+  };
+}
   if (rightsConfirmed !== "true") {
     return {
       error: "Content-rights confirmation is required before processing.",
@@ -59,27 +79,58 @@ export async function action({ request }) {
     };
   }
 
-  try {
-    const result = await processPhoto({
-      imageFile,
-      processingChoice,
-      sourceLanguage,
-    });
+let creditReserved = false;
 
-    return {
-      completedImageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
-    };
-  } catch (error) {
-    console.error("Photo processing failed:", error);
+try {
+  await reserveMediaCredit({
+    shop: session.shop,
+    processingType: processingChoice,
+    requestId,
+  });
 
-   return {
-  error:
-    "The photo could not be processed. Please try again. If the problem continues, contact support.",
-};
+  creditReserved = true;
+
+  const result = await processPhoto({
+    imageFile,
+    processingChoice,
+    sourceLanguage,
+  });
+
+  await completeMediaCredit(requestId);
+
+  const account = await getMediaCreditAccount(session.shop);
+
+  return {
+    completedImageUrl: `data:${result.mimeType};base64,${result.imageBase64}`,
+    creditBalance: account.balance,
+  };
+} catch (error) {
+  if (creditReserved) {
+    try {
+      await refundMediaCredit(requestId);
+    } catch (refundError) {
+      console.error("Photo credit refund failed:", refundError);
+    }
   }
+
+  console.error("Photo processing failed:", error);
+
+  if (error instanceof InsufficientMediaCreditsError) {
+    return {
+      error:
+        "No photo credits are available. Please purchase or add credits before processing.",
+    };
+  }
+
+  return {
+    error:
+      "The photo could not be processed. Please try again. If the problem continues, contact support.",
+  };
+}
 }
 
 export default function PhotoCleanup() {
+  const { creditBalance } = useLoaderData();
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [error, setError] = useState("");
@@ -91,6 +142,8 @@ const fetcher = useFetcher();
 const isProcessing = fetcher.state !== "idle";
 const [completedImageUrl, setCompletedImageUrl] = useState("");
 const [processingError, setProcessingError] = useState("");
+const displayedCreditBalance =
+  fetcher.data?.creditBalance ?? creditBalance;
 
   useEffect(() => {
     return () => {
@@ -169,6 +222,7 @@ function startPhotoAnalysis() {
   formData.append("rightsConfirmed", "true");
   formData.append("processingChoice", processingChoice);
   formData.append("sourceLanguage", sourceLanguage);
+formData.append("requestId", crypto.randomUUID());
 
   fetcher.submit(formData, {
     method: "post",
@@ -280,6 +334,9 @@ in my store or stores only.
   each. Failed processing attempts do not use a credit.
 </s-banner>
 <s-paragraph>
+  Available photo credits: {displayedCreditBalance}
+</s-paragraph>
+<s-paragraph>
   Uploaded and completed photos are not saved in the GEANOS Store IQ
   database. Download the completed photo before leaving or refreshing this
   page.
@@ -331,10 +388,15 @@ in my store or stores only.
       </label>
 
          </fieldset>
-
+{displayedCreditBalance < 1 && (
+  <s-banner tone="warning">
+    No photo credits are currently available. Add or purchase credits before
+    starting photo processing.
+  </s-banner>
+)}
    <s-button
   variant="primary"
-  disabled={isProcessing}
+  disabled={isProcessing || displayedCreditBalance < 1}
   onClick={startPhotoAnalysis}
 >
   {isProcessing ? "Processing Photo..." : "Start Photo Analysis"}
