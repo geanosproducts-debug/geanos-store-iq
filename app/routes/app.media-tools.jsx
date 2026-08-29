@@ -1,13 +1,17 @@
+import styles from "../styles/media-tools.module.css";
+
 export default function MediaTools() {
   return (
     <s-page heading="Photo & Video Media Tools">
-      <s-section>
-        <s-button href="/app/action-strategy">
+      <section className={styles.mediaCard}>
+      <s-button href="/app/action-strategy" variant="primary">
           ← Back to Action & Strategy
         </s-button>
-      </s-section>
+      </section>
 
-      <s-section heading="Media Workspace">
+      <section className={styles.mediaCard}>
+        <s-heading>Media Workspace</s-heading>
+
         <s-paragraph>
           Translate, clean and prepare product photos and videos for use in
           Shopify stores.
@@ -17,20 +21,24 @@ export default function MediaTools() {
           Media processing is available only for content the merchant owns or
           has permission to edit.
         </s-paragraph>
-      </s-section>
+      </section>
 
-      <s-section heading="Photo Credit Management">
+      <section className={styles.mediaCard}>
+        <s-heading>Photo Credit Management</s-heading>
+
         <s-paragraph>
           View the available photo-credit balance, rollover setting, lifetime
           usage and recent credit activity.
         </s-paragraph>
 
-        <s-button href="/app/media-credits">
+        <s-button href="/app/media-credits" variant="primary">
           Manage Photo Credits
         </s-button>
-      </s-section>
+      </section>
 
-      <s-section heading="Photo Translator & Cleanup">
+      <section className={styles.mediaCard}>
+        <s-heading>Photo Translator & Cleanup</s-heading>
+
         <s-paragraph>
           Detect foreign text, translate it into English, remove approved
           watermarks or unwanted overlays, and preview the cleaned image before
@@ -45,11 +53,13 @@ export default function MediaTools() {
         </s-unordered-list>
 
         <s-button href="/app/photo-cleanup" variant="primary">
-  Open Photo Translator & Cleanup
-</s-button>
-      </s-section>
+          Open Photo Translator & Cleanup
+        </s-button>
+      </section>
 
-      <s-section heading="Video Translator & Cleanup">
+      <section className={styles.mediaCard}>
+        <s-heading>Video Translator & Cleanup</s-heading>
+
         <s-paragraph>
           Detect text across video frames, add English translations or
           subtitles, remove approved overlays, and prepare the finished video
@@ -66,14 +76,16 @@ export default function MediaTools() {
         <s-button disabled>
           Video Tool - Planned
         </s-button>
-      </s-section>
+      </section>
 
-      <s-section heading="Content Rights">
+      <section className={styles.mediaCard}>
+        <s-heading>Content Rights</s-heading>
+
         <s-banner tone="warning">
           Merchants must confirm that they own the uploaded media or have
           permission to translate, modify and remove its watermarks or overlays.
         </s-banner>
-      </s-section>
+      </section>
     </s-page>
   );
 }

@@ -9,6 +9,7 @@ import {
   refundMediaCredit,
   reserveMediaCredit,
 } from "../services/media-credits.server";
+import styles from "../styles/media-tools.module.css";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 export async function loader({ request }) {
@@ -230,15 +231,17 @@ formData.append("requestId", crypto.randomUUID());
   });
 }
 
-  return (
+   return (
     <s-page heading="Photo Translator & Cleanup">
-      <s-section>
-        <s-button href="/app/media-tools">
-          Back to Media Tools
+      <section className={styles.mediaCard}>
+        <s-button href="/app/media-tools" variant="primary">
+          ← Back to Media Tools
         </s-button>
-      </s-section>
+      </section>
 
-      <s-section heading="Upload Photo">
+      <section className={styles.mediaCard}>
+        <s-heading>Upload Photo</s-heading>
+
         <s-paragraph>
           Upload a product photo to translate visible text, remove authorised
           watermarks or overlays, and preview the completed image.
@@ -254,18 +257,14 @@ formData.append("requestId", crypto.randomUUID());
           Accepted formats: JPG, PNG and WEBP. Maximum file size: 20 MB.
         </s-paragraph>
 
-        {error && (
-          <s-banner tone="critical">
-            {error}
-          </s-banner>
-        )}
-      </s-section>
+        {error && <s-banner tone="critical">{error}</s-banner>}
+      </section>
 
       {selectedFile && (
-        <s-section heading="Original Photo">
-          <s-paragraph>
-            File: {selectedFile.name}
-          </s-paragraph>
+        <section className={styles.mediaCard}>
+          <s-heading>Original Photo</s-heading>
+
+          <s-paragraph>File: {selectedFile.name}</s-paragraph>
 
           <img
             src={previewUrl}
@@ -278,198 +277,234 @@ formData.append("requestId", crypto.randomUUID());
             }}
           />
 
-          <s-button onClick={clearImage}>
-            Remove Photo
-          </s-button>
-        </s-section>
+          <s-button onClick={clearImage}>Remove Photo</s-button>
+        </section>
       )}
 
-      <s-section heading="Content Rights">
+      <section className={styles.mediaCard}>
+        <s-heading>Content Rights</s-heading>
+
         <label>
           <input
             type="checkbox"
             checked={rightsConfirmed}
-            onChange={(event) => setRightsConfirmed(event.target.checked)}
+            onChange={(event) =>
+              setRightsConfirmed(event.target.checked)
+            }
           />{" "}
-         I confirm that I own this media or have permission to translate,
-modify and remove its watermarks or overlays for promotional purposes
-in my store or stores only.
+          I confirm that I own this media or have permission to translate,
+          modify and remove its watermarks or overlays for promotional
+          purposes in my store or stores only.
         </label>
-      </s-section>
+      </section>
 
-      <s-section heading="Processing Options">
+      <section className={styles.mediaCard}>
+        <s-heading>Processing Options</s-heading>
+
         <s-unordered-list>
           <s-list-item>Detect visible text in the photo</s-list-item>
-          <s-list-item>Translate detected text into English</s-list-item>
-          <s-list-item>Remove authorised watermarks or overlays</s-list-item>
-          <s-list-item>Preview the completed photo before download</s-list-item>
+          <s-list-item>
+            Translate detected text into English
+          </s-list-item>
+          <s-list-item>
+            Remove authorised watermarks or overlays
+          </s-list-item>
+          <s-list-item>
+            Preview the completed photo before download
+          </s-list-item>
         </s-unordered-list>
 
         <s-button
-  variant="primary"
-  disabled={!selectedFile || !rightsConfirmed}
-  onClick={() => setAnalysisStarted(true)}
->
-  Analyse Photo
-</s-button>
-      </s-section>
-{analysisStarted && selectedFile && (
-  <s-section heading="Photo Analysis Setup">
-    <s-banner tone="success">
-      Photo accepted. Choose the work required before processing begins.
-    </s-banner>
-<s-banner tone="warning">
-  Processing can take up to 1–2 minutes. Please keep this page open and
-  click Start Photo Analysis only once.
-</s-banner>
+          variant="primary"
+          disabled={!selectedFile || !rightsConfirmed}
+          onClick={() => setAnalysisStarted(true)}
+        >
+          Analyse Photo
+        </s-button>
+      </section>
 
-<s-paragraph>
-  For best results when both services are required, complete Watermark
-  Removal first. Then upload the cleaned photo again and use the Translate
-  Visible Text option.
-</s-paragraph>
-<s-banner>
-  Each successfully completed processing run uses 1 photo credit.
-  Watermark removal and translation are separate processes and use 1 credit
-  each. Failed processing attempts do not use a credit.
-</s-banner>
-<s-paragraph>
-  Available photo credits: {displayedCreditBalance}
-</s-paragraph>
-<s-paragraph>
-  Uploaded and completed photos are not saved in the GEANOS Store IQ
-  database. Download the completed photo before leaving or refreshing this
-  page.
-</s-paragraph>
-    <s-paragraph>
-      Selected photo: {selectedFile.name}
-    </s-paragraph>
+      {analysisStarted && selectedFile && (
+        <section className={styles.mediaCard}>
+          <s-heading>Photo Analysis Setup</s-heading>
 
-    <label>
-      Original language
-      <br />
-      <select
-        value={sourceLanguage}
-        onChange={(event) => setSourceLanguage(event.target.value)}
-      >
-        <option value="auto">Detect automatically</option>
-        <option value="chinese">Chinese</option>
-        <option value="japanese">Japanese</option>
-        <option value="korean">Korean</option>
-        <option value="other">Other language</option>
-      </select>
-    </label>
+          <s-banner tone="success">
+            Photo accepted. Choose the work required before processing
+            begins.
+          </s-banner>
 
-    <fieldset>
-      <legend>Choose the required processing</legend>
+          <s-banner tone="warning">
+            Processing can take up to 1–2 minutes. Please keep this page
+            open and click Start Photo Analysis only once.
+          </s-banner>
 
-      <label>
-        <input
-          type="radio"
-          name="processingChoice"
-          value="translate"
-          checked={processingChoice === "translate"}
-          onChange={(event) => setProcessingChoice(event.target.value)}
-        />{" "}
-        Detect and translate visible text into English
-      </label>
+          <s-paragraph>
+            For best results when both services are required, complete
+            Watermark Removal first. Then upload the cleaned photo again
+            and use the Translate Visible Text option.
+          </s-paragraph>
 
-      <br />
+          <s-banner>
+            Each successfully completed processing run uses 1 photo
+            credit. Watermark removal and translation are separate
+            processes and use 1 credit each. Failed processing attempts
+            do not use a credit.
+          </s-banner>
 
-      <label>
-        <input
-          type="radio"
-          name="processingChoice"
-          value="cleanup"
-          checked={processingChoice === "cleanup"}
-          onChange={(event) => setProcessingChoice(event.target.value)}
-        />{" "}
-        Remove authorised watermarks or overlays
-      </label>
+          <s-paragraph>
+            Available photo credits: {displayedCreditBalance}
+          </s-paragraph>
 
-         </fieldset>
-{displayedCreditBalance < 1 && (
-  <s-banner tone="warning">
-    No photo credits are currently available. Add or purchase credits before
-    starting photo processing.
-  </s-banner>
-)}
-   <s-button
-  variant="primary"
-  disabled={isProcessing || displayedCreditBalance < 1}
-  onClick={startPhotoAnalysis}
->
-  {isProcessing ? "Processing Photo..." : "Start Photo Analysis"}
-</s-button>
-  </s-section>
-)}
-{processingError && (
-  <s-section heading="Photo Processing Error">
-    <s-banner tone="critical">
-      {processingError}
-    </s-banner>
-  </s-section>
-)}
+          <s-paragraph>
+            Uploaded and completed photos are not saved in the GEANOS
+            Store IQ database. Download the completed photo before
+            leaving or refreshing this page.
+          </s-paragraph>
 
-{completedImageUrl && (
-  <s-section heading="Completed Photo">
-    <s-banner tone="success">
-      Photo processing completed successfully. Review the result before
-      downloading it.
-    </s-banner>
+          <s-paragraph>
+            Selected photo: {selectedFile.name}
+          </s-paragraph>
 
-   <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: "20px",
-    marginTop: "16px",
-  }}
->
-  <div>
-    <h3>Before</h3>
-    <img
-      src={previewUrl}
-      alt="Original uploaded product"
-      style={{
-        display: "block",
-        width: "100%",
-        maxHeight: "600px",
-        objectFit: "contain",
-        borderRadius: "8px",
-      }}
-    />
-  </div>
+          <label>
+            Original language
+            <br />
+            <select
+              value={sourceLanguage}
+              onChange={(event) =>
+                setSourceLanguage(event.target.value)
+              }
+            >
+              <option value="auto">Detect automatically</option>
+              <option value="chinese">Chinese</option>
+              <option value="japanese">Japanese</option>
+              <option value="korean">Korean</option>
+              <option value="other">Other language</option>
+            </select>
+          </label>
 
-  <div>
-    <h3>After</h3>
-    <img
-      src={completedImageUrl}
-      alt="Completed translated or cleaned product"
-      style={{
-        display: "block",
-        width: "100%",
-        maxHeight: "600px",
-        objectFit: "contain",
-        borderRadius: "8px",
-      }}
-    />
-  </div>
-</div>
+          <fieldset>
+            <legend>Choose the required processing</legend>
 
-    <p>
-      <a
-        href={completedImageUrl}
-        download="GEANOS-completed-photo.png"
-      >
-        Download Completed Photo
-      </a>
-    </p>
-<s-button onClick={clearImage}>
-  Process Another Photo
-</s-button>
-  </s-section>
-)}
+            <label>
+              <input
+                type="radio"
+                name="processingChoice"
+                value="translate"
+                checked={processingChoice === "translate"}
+                onChange={(event) =>
+                  setProcessingChoice(event.target.value)
+                }
+              />{" "}
+              Detect and translate visible text into English
+            </label>
+
+            <br />
+
+            <label>
+              <input
+                type="radio"
+                name="processingChoice"
+                value="cleanup"
+                checked={processingChoice === "cleanup"}
+                onChange={(event) =>
+                  setProcessingChoice(event.target.value)
+                }
+              />{" "}
+              Remove authorised watermarks or overlays
+            </label>
+          </fieldset>
+
+          {displayedCreditBalance < 1 && (
+            <s-banner tone="warning">
+              No photo credits are currently available. Add or purchase
+              credits before starting photo processing.
+            </s-banner>
+          )}
+
+          <s-button
+            variant="primary"
+            disabled={isProcessing || displayedCreditBalance < 1}
+            onClick={startPhotoAnalysis}
+          >
+            {isProcessing
+              ? "Processing Photo..."
+              : "Start Photo Analysis"}
+          </s-button>
+        </section>
+      )}
+
+      {processingError && (
+        <section className={styles.mediaCard}>
+          <s-heading>Photo Processing Error</s-heading>
+
+          <s-banner tone="critical">{processingError}</s-banner>
+        </section>
+      )}
+
+      {completedImageUrl && (
+        <section className={styles.mediaCard}>
+          <s-heading>Completed Photo</s-heading>
+
+          <s-banner tone="success">
+            Photo processing completed successfully. Review the result
+            before downloading it.
+          </s-banner>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "20px",
+              marginTop: "16px",
+            }}
+          >
+            <div>
+              <h3>Before</h3>
+
+              <img
+                src={previewUrl}
+                alt="Original uploaded product"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxHeight: "600px",
+                  objectFit: "contain",
+                  borderRadius: "8px",
+                }}
+              />
+            </div>
+
+            <div>
+              <h3>After</h3>
+
+              <img
+                src={completedImageUrl}
+                alt="Completed translated or cleaned product"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxHeight: "600px",
+                  objectFit: "contain",
+                  borderRadius: "8px",
+                }}
+              />
+            </div>
+          </div>
+
+          <p>
+            <a
+              href={completedImageUrl}
+              download="GEANOS-completed-photo.png"
+            >
+              Download Completed Photo
+            </a>
+          </p>
+
+          <s-button onClick={clearImage}>
+            Process Another Photo
+          </s-button>
+        </section>
+      )}
     </s-page>
   );
 }

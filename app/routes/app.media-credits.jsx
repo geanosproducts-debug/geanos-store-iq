@@ -10,6 +10,7 @@ import {
   getMediaCreditAccount,
   getRecentMediaCreditTransactions,
 } from "../services/media-credits.server";
+import styles from "../styles/media-tools.module.css";
 
 const CREDIT_TYPE_LABELS = {
   manual_grant: "Credits added manually",
@@ -153,40 +154,39 @@ export async function action({ request }) {
 }
 
 export default function MediaCredits() {
-  const { account, purchaseReturned, transactions } =
-    useLoaderData();
-   const actionData = useActionData();
+  const { account, purchaseReturned, transactions } = useLoaderData();
+  const actionData = useActionData();
   const submit = useSubmit();
   const creditPacks = Object.values(MEDIA_CREDIT_PACKS);
 
   return (
     <s-page heading="Photo Credit Management">
-      <s-section>
-        <s-button href="/app/media-tools">
+      <section className={styles.mediaCard}>
+        <s-button href="/app/media-tools" variant="primary">
           ← Back to Media Tools
         </s-button>
-      </s-section>
+      </section>
 
       {purchaseReturned && (
-        <s-section>
+        <section className={styles.mediaCard}>
           <s-banner tone="success">
-            Shopify has returned you to GEANOS Store IQ. Approved
-            photo credits are added automatically when Shopify confirms
-            the purchase. Refresh this page if the updated balance does
-            not appear immediately.
+            Shopify has returned you to GEANOS Store IQ. Approved photo
+            credits are added automatically when Shopify confirms the
+            purchase. Refresh this page if the updated balance does not
+            appear immediately.
           </s-banner>
-        </s-section>
+        </section>
       )}
 
       {actionData?.error && (
-        <s-section>
-          <s-banner tone="critical">
-            {actionData.error}
-          </s-banner>
-        </s-section>
+        <section className={styles.mediaCard}>
+          <s-banner tone="critical">{actionData.error}</s-banner>
+        </section>
       )}
 
-      <s-section heading="Available Photo Credits">
+      <section className={styles.mediaCard}>
+        <s-heading>Available Photo Credits</s-heading>
+
         <s-heading>{account.balance} credits available</s-heading>
 
         <s-paragraph>
@@ -201,9 +201,11 @@ export default function MediaCredits() {
             credits before starting photo processing.
           </s-banner>
         )}
-      </s-section>
+      </section>
 
-      <s-section heading="Credit Account">
+      <section className={styles.mediaCard}>
+        <s-heading>Credit Account</s-heading>
+
         <s-unordered-list>
           <s-list-item>
             Monthly allowance:{" "}
@@ -225,9 +227,11 @@ export default function MediaCredits() {
             Lifetime credits used: {account.lifetimeUsed}
           </s-list-item>
         </s-unordered-list>
-      </s-section>
+      </section>
 
-      <s-section heading="Recent Credit Activity">
+      <section className={styles.mediaCard}>
+        <s-heading>Recent Credit Activity</s-heading>
+
         {transactions.length === 0 ? (
           <s-paragraph>
             No credit activity has been recorded yet.
@@ -255,29 +259,31 @@ export default function MediaCredits() {
             })}
           </s-unordered-list>
         )}
-      </s-section>
+      </section>
 
-      <s-section heading="Buy More Credits">
+      <section className={styles.mediaCard}>
+        <s-heading>Buy More Credits</s-heading>
+
         <s-paragraph>
           Purchase additional photo credits securely through Shopify.
           Credit packs are one-time purchases and unused credits remain
           available because rollover is enabled.
         </s-paragraph>
-      </s-section>
+      </section>
 
       {creditPacks.map((pack) => (
-        <s-section
-          heading={`${pack.credits}-Credit Pack`}
-          key={pack.id}
-        >
+        <section className={styles.mediaCard} key={pack.id}>
+          <s-heading>{pack.credits}-Credit Pack</s-heading>
           <s-heading>${pack.price}</s-heading>
+
           <s-paragraph>USD</s-paragraph>
+
           <s-paragraph>
             Save ${pack.savings} compared with the standard value of
             $1.00 per credit.
           </s-paragraph>
 
-                    <s-button
+          <s-button
             onClick={() =>
               submit(
                 { packId: pack.id },
@@ -288,7 +294,7 @@ export default function MediaCredits() {
           >
             Buy {pack.credits} Credits
           </s-button>
-        </s-section>
+        </section>
       ))}
     </s-page>
   );
