@@ -19,6 +19,17 @@ export default function MediaTools() {
         </s-paragraph>
       </s-section>
 
+      <s-section heading="Photo Credit Management">
+        <s-paragraph>
+          View the available photo-credit balance, rollover setting, lifetime
+          usage and recent credit activity.
+        </s-paragraph>
+
+        <s-button href="/app/media-credits">
+          Manage Photo Credits
+        </s-button>
+      </s-section>
+
       <s-section heading="Photo Translator & Cleanup">
         <s-paragraph>
           Detect foreign text, translate it into English, remove approved

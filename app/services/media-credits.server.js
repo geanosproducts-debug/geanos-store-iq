@@ -15,6 +15,18 @@ export async function getMediaCreditAccount(shop) {
   });
 }
 
+export async function getRecentMediaCreditTransactions(shop, limit = 10) {
+  const safeLimit = Number.isInteger(limit)
+    ? Math.min(Math.max(limit, 1), 50)
+    : 10;
+
+  return db.mediaCreditTransaction.findMany({
+    where: { shop },
+    orderBy: { createdAt: "desc" },
+    take: safeLimit,
+  });
+}
+
 export async function grantMediaCredits({
   shop,
   amount,
