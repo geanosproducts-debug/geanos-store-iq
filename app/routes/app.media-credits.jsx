@@ -1,5 +1,11 @@
-import { useLoaderData } from "react-router";
+import {
+  redirect,
+  useActionData,
+  useLoaderData,
+  useSubmit,
+} from "react-router";
 import { authenticate } from "../shopify.server";
+import { MEDIA_CREDIT_PACKS } from "../services/media-credit-packs";
 import {
   getMediaCreditAccount,
   getRecentMediaCreditTransactions,
@@ -37,6 +43,7 @@ function formatTransactionStatus(status) {
 
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
+  const requestUrl = new URL(request.url);
 
   const [account, transactions] = await Promise.all([
     getMediaCreditAccount(session.shop),
@@ -51,6 +58,8 @@ export async function loader({ request }) {
       monthlyAllowance: account.monthlyAllowance,
       rolloverEnabled: account.rolloverEnabled,
     },
+    purchaseReturned:
+      requestUrl.searchParams.get("purchase") === "approved",
     transactions: transactions.map((transaction) => ({
       id: transaction.id,
       amount: transaction.amount,
@@ -62,8 +71,93 @@ export async function loader({ request }) {
   };
 }
 
+export async function action({ request }) {
+  const { admin } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const packId = formData.get("packId");
+  const pack = MEDIA_CREDIT_PACKS[packId];
+
+  if (!pack) {
+    return {
+      error: "The selected photo-credit pack is not available.",
+    };
+  }
+
+  const returnUrl = new URL(
+    "/app/media-credits?purchase=approved",
+    request.url,
+  ).toString();
+
+  const response = await admin.graphql(
+    `#graphql
+      mutation CreatePhotoCreditPurchase(
+        $name: String!
+        $price: MoneyInput!
+        $returnUrl: URL!
+        $test: Boolean!
+      ) {
+        appPurchaseOneTimeCreate(
+          name: $name
+          price: $price
+          returnUrl: $returnUrl
+          test: $test
+        ) {
+          appPurchaseOneTime {
+            id
+            name
+            status
+            test
+          }
+          confirmationUrl
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `,
+    {
+      variables: {
+        name: pack.name,
+        price: {
+          amount: pack.price,
+          currencyCode: pack.currencyCode,
+        },
+        returnUrl,
+        test:
+          process.env.SHOPIFY_BILLING_TEST === "true" ||
+          process.env.NODE_ENV !== "production",
+      },
+    },
+  );
+
+  const responseJson = await response.json();
+  const purchaseResult =
+    responseJson.data?.appPurchaseOneTimeCreate;
+  const userErrors = purchaseResult?.userErrors || [];
+
+  if (userErrors.length > 0) {
+    return {
+      error: userErrors.map((error) => error.message).join(" "),
+    };
+  }
+
+  if (!purchaseResult?.confirmationUrl) {
+    return {
+      error:
+        "Shopify did not provide a purchase approval link. Please try again.",
+    };
+  }
+
+  throw redirect(purchaseResult.confirmationUrl);
+}
+
 export default function MediaCredits() {
-  const { account, transactions } = useLoaderData();
+  const { account, purchaseReturned, transactions } =
+    useLoaderData();
+   const actionData = useActionData();
+  const submit = useSubmit();
+  const creditPacks = Object.values(MEDIA_CREDIT_PACKS);
 
   return (
     <s-page heading="Photo Credit Management">
@@ -73,19 +167,38 @@ export default function MediaCredits() {
         </s-button>
       </s-section>
 
+      {purchaseReturned && (
+        <s-section>
+          <s-banner tone="success">
+            Shopify has returned you to GEANOS Store IQ. Approved
+            photo credits are added automatically when Shopify confirms
+            the purchase. Refresh this page if the updated balance does
+            not appear immediately.
+          </s-banner>
+        </s-section>
+      )}
+
+      {actionData?.error && (
+        <s-section>
+          <s-banner tone="critical">
+            {actionData.error}
+          </s-banner>
+        </s-section>
+      )}
+
       <s-section heading="Available Photo Credits">
         <s-heading>{account.balance} credits available</s-heading>
 
         <s-paragraph>
-          Each successfully completed watermark-removal or translation process
-          uses 1 photo credit. Failed processing attempts are refunded
-          automatically.
+          Each successfully completed watermark-removal or translation
+          process uses 1 photo credit. Failed processing attempts are
+          refunded automatically.
         </s-paragraph>
 
         {account.balance < 1 && (
           <s-banner tone="warning">
-            No photo credits are currently available. Purchase or add credits
-            before starting photo processing.
+            No photo credits are currently available. Purchase or add
+            credits before starting photo processing.
           </s-banner>
         )}
       </s-section>
@@ -116,22 +229,26 @@ export default function MediaCredits() {
 
       <s-section heading="Recent Credit Activity">
         {transactions.length === 0 ? (
-          <s-paragraph>No credit activity has been recorded yet.</s-paragraph>
+          <s-paragraph>
+            No credit activity has been recorded yet.
+          </s-paragraph>
         ) : (
           <s-unordered-list>
             {transactions.map((transaction) => {
-                            const activityLabel =
+              const activityLabel =
                 transaction.type === "usage"
-                  ? PROCESSING_TYPE_LABELS[transaction.processingType] ||
-                    "Photo processing"
+                  ? PROCESSING_TYPE_LABELS[
+                      transaction.processingType
+                    ] || "Photo processing"
                   : CREDIT_TYPE_LABELS[transaction.type] ||
                     "Credit adjustment";
 
               return (
                 <s-list-item key={transaction.id}>
                   {formatTransactionDate(transaction.createdAt)} —{" "}
-                  {activityLabel} — {formatCreditAmount(transaction.amount)}{" "}
-                  credit{Math.abs(transaction.amount) === 1 ? "" : "s"} —{" "}
+                  {activityLabel} —{" "}
+                  {formatCreditAmount(transaction.amount)} credit
+                  {Math.abs(transaction.amount) === 1 ? "" : "s"} —{" "}
                   {formatTransactionStatus(transaction.status)}
                 </s-list-item>
               );
@@ -142,15 +259,37 @@ export default function MediaCredits() {
 
       <s-section heading="Buy More Credits">
         <s-paragraph>
-          Additional photo-credit packs will be purchased securely through
-          Shopify Billing. This payment connection will be completed in the
-          next billing build.
+          Purchase additional photo credits securely through Shopify.
+          Credit packs are one-time purchases and unused credits remain
+          available because rollover is enabled.
         </s-paragraph>
-
-        <s-button disabled>
-          Buy More Credits - Next Build
-        </s-button>
       </s-section>
+
+      {creditPacks.map((pack) => (
+        <s-section
+          heading={`${pack.credits}-Credit Pack`}
+          key={pack.id}
+        >
+          <s-heading>${pack.price}</s-heading>
+          <s-paragraph>USD</s-paragraph>
+          <s-paragraph>
+            Save ${pack.savings} compared with the standard value of
+            $1.00 per credit.
+          </s-paragraph>
+
+                    <s-button
+            onClick={() =>
+              submit(
+                { packId: pack.id },
+                { method: "post" },
+              )
+            }
+            variant="primary"
+          >
+            Buy {pack.credits} Credits
+          </s-button>
+        </s-section>
+      ))}
     </s-page>
   );
 }

@@ -37,6 +37,10 @@ type = "multi_line_text_field"
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
+  uri = "/webhooks/app-purchases-one-time-update"
+  topics = [ "app_purchases_one_time/update" ]
+
+  [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
