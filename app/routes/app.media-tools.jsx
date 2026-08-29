@@ -73,8 +73,8 @@ export default function MediaTools() {
           <s-list-item>Preview and download the finished video</s-list-item>
         </s-unordered-list>
 
-        <s-button disabled>
-          Video Tool - Planned
+       <s-button href="/app/video-cleanup" variant="primary">
+        Open Video Translator & Cleanup
         </s-button>
       </section>
 
