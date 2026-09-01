@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { Storage } from "@google-cloud/storage";
+import { fal } from "@fal-ai/client";
 import os from "node:os";
 import path from "node:path";
 import vision from "@google-cloud/vision";
@@ -12,9 +13,15 @@ const SAMPLE_INTERVAL_SECONDS = 2;
 const MAX_ANALYSIS_FRAMES = 45;
 const OPENAI_FRAME_BATCH_SIZE = 8;
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_VOID_SEGMENT_FRAMES = 197;
+
 const PROPAINTER_MODEL =
   "jd7h/propainter:e5ea7ae04e97c96a0e14c70d8e4cb899abdf326a377c01f1c10966ccd6c6bae4";
-  const PROPAINTER_BUCKET =
+
+const VOID_MODEL =
+  "fal-ai/void-video-inpainting";
+
+const PROPAINTER_BUCKET =
   "geanos-store-iq-media-processing";
 const ALLOWED_LANGUAGES = {
   auto: "Detect the original language automatically.",
@@ -131,9 +138,35 @@ async function getVideoInformation(videoPath) {
   const videoStream = videoInformation.streams?.find(
     (stream) => stream.codec_type === "video",
   );
-  const width = Number(videoStream?.width);
-  const height = Number(videoStream?.height);
 
+  const height = Number(videoStream?.height);
+const width = Number(videoStream?.width);
+  const frameRateValue =
+    videoStream?.avg_frame_rate ||
+    videoStream?.r_frame_rate ||
+    "";
+
+  const [frameRateNumerator, frameRateDenominator] =
+    String(frameRateValue)
+      .split("/")
+      .map(Number);
+
+  const frameRate =
+    Number.isFinite(frameRateNumerator) &&
+    Number.isFinite(frameRateDenominator) &&
+    frameRateDenominator > 0
+      ? frameRateNumerator / frameRateDenominator
+      : Number(frameRateValue);
+
+  const reportedFrameCount = Number(
+    videoStream?.nb_frames,
+  );
+
+  const frameCount =
+    Number.isFinite(reportedFrameCount) &&
+    reportedFrameCount > 0
+      ? Math.round(reportedFrameCount)
+      : Math.ceil(duration * frameRate);
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error(
       "The duration of the uploaded video could not be determined.",
@@ -151,11 +184,339 @@ async function getVideoInformation(videoPath) {
     );
   }
 
+    if (
+    !Number.isFinite(frameRate) ||
+    frameRate <= 0 ||
+    !Number.isFinite(frameCount) ||
+    frameCount <= 0
+  ) {
+    throw new Error(
+      "The frame rate or frame count of the uploaded video could not be determined.",
+    );
+  }
+
   return {
     duration,
     width,
     height,
+    frameRate,
+    frameCount,
   };
+}
+
+function createVoidSegmentPlan({
+  frameCount,
+}) {
+  const segments = [];
+  let outputStartFrame = 0;
+
+  while (outputStartFrame < frameCount) {
+    const remainingFrames =
+      frameCount - outputStartFrame;
+
+    if (
+      remainingFrames >
+      MAX_VOID_SEGMENT_FRAMES
+    ) {
+      segments.push({
+        segmentIndex: segments.length,
+        startFrame: outputStartFrame,
+        endFrameExclusive:
+          outputStartFrame +
+          MAX_VOID_SEGMENT_FRAMES,
+        numFrames:
+          MAX_VOID_SEGMENT_FRAMES,
+        discardLeadingFrames: 0,
+        outputFrameCount:
+          MAX_VOID_SEGMENT_FRAMES,
+      });
+
+      outputStartFrame +=
+        MAX_VOID_SEGMENT_FRAMES;
+
+      continue;
+    }
+
+    const supportedFrameCount =
+      remainingFrames <= 69
+        ? 69
+        : Math.min(
+            MAX_VOID_SEGMENT_FRAMES,
+            69 +
+              Math.ceil(
+                (remainingFrames - 69) / 8,
+              ) *
+                8,
+          );
+
+    const inputStartFrame = Math.max(
+      frameCount - supportedFrameCount,
+      0,
+    );
+
+    const actualInputFrameCount =
+      frameCount - inputStartFrame;
+
+    if (actualInputFrameCount < 69) {
+      throw new Error(
+        "VOID requires at least 69 video frames for cleanup.",
+      );
+    }
+
+    segments.push({
+      segmentIndex: segments.length,
+      startFrame: inputStartFrame,
+      endFrameExclusive: frameCount,
+      numFrames: actualInputFrameCount,
+      discardLeadingFrames:
+        outputStartFrame - inputStartFrame,
+      outputFrameCount: remainingFrames,
+    });
+
+    outputStartFrame = frameCount;
+  }
+
+  return segments;
+}
+
+async function extractVoidSegmentFiles({
+  videoPath,
+  maskPath,
+  videoSegmentPath,
+  maskSegmentPath,
+  startFrame,
+  endFrameExclusive,
+}) {
+  const trimFilter =
+    `trim=start_frame=${startFrame}:` +
+    `end_frame=${endFrameExclusive},` +
+    "setpts=PTS-STARTPTS";
+
+  await Promise.all([
+    runCommand(getFfmpegCommand(), [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      videoPath,
+      "-map",
+      "0:v:0",
+      "-vf",
+      trimFilter,
+      "-an",
+      "-fps_mode",
+      "passthrough",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "18",
+      "-pix_fmt",
+      "yuv420p",
+      "-movflags",
+      "+faststart",
+      "-y",
+      videoSegmentPath,
+    ]),
+    runCommand(getFfmpegCommand(), [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      maskPath,
+      "-map",
+      "0:v:0",
+      "-vf",
+      trimFilter,
+      "-an",
+      "-fps_mode",
+      "passthrough",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "0",
+      "-pix_fmt",
+      "yuv420p",
+      "-movflags",
+      "+faststart",
+      "-y",
+      maskSegmentPath,
+    ]),
+  ]);
+}
+async function trimVoidOutputSegment({
+  inputPath,
+  outputPath,
+  discardLeadingFrames,
+  outputFrameCount,
+}) {
+  const endFrameExclusive =
+    discardLeadingFrames +
+    outputFrameCount;
+
+  const trimFilter =
+    `trim=start_frame=${discardLeadingFrames}:` +
+    `end_frame=${endFrameExclusive},` +
+    "setpts=PTS-STARTPTS";
+
+  await runCommand(getFfmpegCommand(), [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    inputPath,
+    "-map",
+    "0:v:0",
+    "-vf",
+    trimFilter,
+    "-an",
+    "-fps_mode",
+    "passthrough",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "18",
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+    "-y",
+    outputPath,
+  ]);
+}
+async function reassembleVoidSegments({
+  segmentPaths,
+  concatListPath,
+  outputPath,
+}) {
+  if (
+    !Array.isArray(segmentPaths) ||
+    segmentPaths.length === 0
+  ) {
+    throw new Error(
+      "No cleaned VOID segments were available for reassembly.",
+    );
+  }
+
+  const concatList = segmentPaths
+    .map((segmentPath) => {
+      const safePath = segmentPath
+        .replace(/\\/g, "/")
+        .replace(/'/g, "\\'");
+
+      return `file '${safePath}'`;
+    })
+    .join("\n");
+
+  await fs.writeFile(
+    concatListPath,
+    `${concatList}\n`,
+    "utf8",
+  );
+
+  await runCommand(getFfmpegCommand(), [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    concatListPath,
+    "-map",
+    "0:v:0",
+    "-an",
+    "-c:v",
+    "copy",
+    "-movflags",
+    "+faststart",
+    "-y",
+    outputPath,
+  ]);
+}
+
+    async function runVoidCleanup({
+  videoPath,
+  maskPath,
+  segmentDirectory,
+  concatListPath,
+  outputPath,
+  frameCount,
+}) {
+  const segmentPlan = createVoidSegmentPlan({
+    frameCount,
+  });
+
+  const cleanedSegmentPaths = [];
+
+  for (const segment of segmentPlan) {
+    const segmentNumber = String(
+      segment.segmentIndex + 1,
+    ).padStart(3, "0");
+
+    const videoSegmentPath = path.join(
+      segmentDirectory,
+      `video-${segmentNumber}.mp4`,
+    );
+
+    const maskSegmentPath = path.join(
+      segmentDirectory,
+      `mask-${segmentNumber}.mp4`,
+    );
+
+    const rawCleanedSegmentPath = path.join(
+      segmentDirectory,
+      `raw-cleaned-${segmentNumber}.mp4`,
+    );
+
+    const cleanedSegmentPath = path.join(
+      segmentDirectory,
+      `cleaned-${segmentNumber}.mp4`,
+    );
+
+    await extractVoidSegmentFiles({
+      videoPath,
+      maskPath,
+      videoSegmentPath,
+      maskSegmentPath,
+      startFrame: segment.startFrame,
+      endFrameExclusive:
+        segment.endFrameExclusive,
+    });
+
+    await runVoidSegment({
+      videoSegmentPath,
+      maskSegmentPath,
+      outputSegmentPath:
+        rawCleanedSegmentPath,
+      numFrames: segment.numFrames,
+    });
+
+    await trimVoidOutputSegment({
+      inputPath: rawCleanedSegmentPath,
+      outputPath: cleanedSegmentPath,
+      discardLeadingFrames:
+        segment.discardLeadingFrames,
+      outputFrameCount:
+        segment.outputFrameCount,
+    });
+
+    cleanedSegmentPaths.push(
+      cleanedSegmentPath,
+    );
+  }
+
+  await reassembleVoidSegments({
+    segmentPaths: cleanedSegmentPaths,
+    concatListPath,
+    outputPath,
+  });
 }
 
 async function extractAnalysisFrames({
@@ -540,17 +901,26 @@ analysisResults.push(
 
   return analysisResults;
 }
-async function createProPainterMaskVideo({
+async function createInpaintingMaskVideo({
   videoPath,
   analysisResults,
   maskPath,
   duration,
   videoWidth,
   videoHeight,
+  invertForVoid = false,
 }) {
+  const preserveColor = invertForVoid
+    ? "white"
+    : "black";
+
+  const removalColor = invertForVoid
+    ? "black"
+    : "white";
+
   const maskFilters = [
     "drawbox=x=0:y=0:w=iw:h=ih:" +
-      "color=black:t=fill",
+      `color=${preserveColor}:t=fill`,
   ];
 
   for (const result of analysisResults) {
@@ -661,7 +1031,7 @@ async function createProPainterMaskVideo({
       maskFilters.push(
         `drawbox=x=${x}:y=${y}` +
           `:w=${width}:h=${height}` +
-          `:color=white:t=fill` +
+          `:color=${removalColor}:t=fill` +
           `:enable='gte(t,${start.toFixed(
             3,
           )})*lt(t,${end.toFixed(3)})'`,
@@ -839,6 +1209,153 @@ async function runProPainter({
     ]);
   }
 }
+
+async function runVoidSegment({
+  videoSegmentPath,
+  maskSegmentPath,
+  outputSegmentPath,
+  numFrames,
+}) {
+  if (!process.env.FAL_KEY) {
+    throw new Error(
+      "The fal.ai API key is not configured.",
+    );
+  }
+
+  fal.config({
+    credentials: process.env.FAL_KEY,
+  });
+
+  const storage = new Storage({
+    projectId:
+      "geanos-store-iq-production",
+  });
+
+  const bucket = storage.bucket(
+    PROPAINTER_BUCKET,
+  );
+
+  const processingId = randomUUID();
+
+  const videoObjectName =
+    `void/${processingId}/` +
+    "input-segment.mp4";
+
+  const maskObjectName =
+    `void/${processingId}/` +
+    "mask-segment.mp4";
+
+  const videoObject = bucket.file(
+    videoObjectName,
+  );
+
+  const maskObject = bucket.file(
+    maskObjectName,
+  );
+
+  try {
+    await Promise.all([
+      bucket.upload(videoSegmentPath, {
+        destination: videoObjectName,
+        resumable: false,
+        metadata: {
+          contentType: "video/mp4",
+        },
+      }),
+      bucket.upload(maskSegmentPath, {
+        destination: maskObjectName,
+        resumable: false,
+        metadata: {
+          contentType: "video/mp4",
+        },
+      }),
+    ]);
+
+    const signedUrlExpiry =
+      Date.now() + 60 * 60 * 1000;
+
+    const [
+      [videoUrl],
+      [maskUrl],
+    ] = await Promise.all([
+      videoObject.getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: signedUrlExpiry,
+      }),
+      maskObject.getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: signedUrlExpiry,
+      }),
+    ]);
+
+    const result = await fal.subscribe(
+      VOID_MODEL,
+      {
+        input: {
+          video_url: videoUrl,
+          quad_mask_video_url: maskUrl,
+          prompt:
+            "Restore the original natural background " +
+            "behind the removed overlaid text. Preserve " +
+            "the products, people, motion, colours, " +
+            "lighting, camera movement, and everything " +
+            "outside the masked area. Do not add text " +
+            "or watermarks.",
+          num_frames: numFrames,
+          enable_pass2_refinement: false,
+          enable_safety_checker: true,
+        },
+        logs: true,
+        onQueueUpdate(update) {
+          if (
+            update.status === "IN_PROGRESS"
+          ) {
+            for (
+              const log of update.logs || []
+            ) {
+              console.log(
+                `VOID: ${log.message}`,
+              );
+            }
+          }
+        },
+      },
+    );
+
+    const outputUrl =
+      result?.data?.video?.url;
+
+    if (!outputUrl) {
+      throw new Error(
+        "VOID did not return a cleaned video.",
+      );
+    }
+
+    const outputResponse =
+      await fetch(outputUrl);
+
+    if (!outputResponse.ok) {
+      throw new Error(
+        "The cleaned VOID video could not be downloaded.",
+      );
+    }
+
+    await fs.writeFile(
+      outputSegmentPath,
+      new Uint8Array(
+        await outputResponse.arrayBuffer(),
+      ),
+    );
+  } finally {
+    await Promise.allSettled([
+      videoObject.delete(),
+      maskObject.delete(),
+    ]);
+  }
+}
+
 function normalizeSubtitleText(text) {
   return text
     .replace(/\r?\n+/g, " ")
@@ -952,7 +1469,7 @@ function escapeSubtitlePath(subtitlePath) {
   return "/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf";
 }
 function escapeDrawText(text) {
-   
+
   return text
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "\\'")
@@ -1143,6 +1660,26 @@ export async function translateVideo({
     "mask-frames",
   );
 
+    const voidSegmentDirectory = path.join(
+    temporaryDirectory,
+    "void-segments",
+  );
+
+  const voidMaskPath = path.join(
+    temporaryDirectory,
+    "void-mask.mp4",
+  );
+
+  const voidReassembledVideoPath = path.join(
+    temporaryDirectory,
+    "void-cleaned-video.mp4",
+  );
+
+  const voidConcatListPath = path.join(
+    temporaryDirectory,
+    "void-segments.txt",
+  );
+
   const maskPath = path.join(
     temporaryDirectory,
     "propainter-mask.mp4",
@@ -1165,7 +1702,7 @@ export async function translateVideo({
 
   try {
     await fs.mkdir(frameDirectory);
-
+        await fs.mkdir(voidSegmentDirectory);
     await fs.writeFile(
       inputPath,
       new Uint8Array(
@@ -1177,6 +1714,8 @@ export async function translateVideo({
       duration,
       width: videoWidth,
       height: videoHeight,
+      frameRate,
+      frameCount,
     } = await getVideoInformation(inputPath);
 
     const frames = await extractAnalysisFrames({
@@ -1213,23 +1752,56 @@ export async function translateVideo({
     let renderVideoPath = inputPath;
 
     if (translationMode === "replace") {
-     await createProPainterMaskVideo({
-  videoPath: inputPath,
-  analysisResults,
-  maskPath,
-  duration,
-  videoWidth,
-  videoHeight,
-});
-      await runProPainter({
-        inputPath,
-        maskPath,
-        cleanedVideoPath,
+      await createInpaintingMaskVideo({
+        videoPath: inputPath,
+        analysisResults,
+        maskPath: voidMaskPath,
+        duration,
+        videoWidth,
+        videoHeight,
+        invertForVoid: true,
       });
 
-      renderVideoPath = cleanedVideoPath;
-    }
+      try {
+        await runVoidCleanup({
+          videoPath: inputPath,
+          maskPath: voidMaskPath,
+          segmentDirectory:
+            voidSegmentDirectory,
+          concatListPath:
+            voidConcatListPath,
+          outputPath:
+            voidReassembledVideoPath,
+          frameCount,
+        });
 
+        renderVideoPath =
+          voidReassembledVideoPath;
+      } catch (voidError) {
+        console.error(
+          "VOID video cleanup failed. Using the ProPainter fallback.",
+          voidError,
+        );
+
+        await createInpaintingMaskVideo({
+          videoPath: inputPath,
+          analysisResults,
+          maskPath,
+          duration,
+          videoWidth,
+          videoHeight,
+        });
+
+        await runProPainter({
+          inputPath,
+          maskPath,
+          cleanedVideoPath,
+        });
+
+        renderVideoPath =
+          cleanedVideoPath;
+      }
+    }
     await renderTranslatedVideo({
       videoPath: renderVideoPath,
       audioPath: inputPath,
