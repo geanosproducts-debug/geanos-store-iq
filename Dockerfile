@@ -1,5 +1,5 @@
 FROM node:20-alpine
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl ffmpeg font-dejavu
 
 EXPOSE 3000
 

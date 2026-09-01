@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import { useFetcher } from "react-router";
+import { authenticate } from "../shopify.server";
+import {
+  NoTranslatableVideoTextError,
+  translateVideo,
+} from "../services/video-processor.server";
 import styles from "../styles/media-tools.module.css";
 
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
@@ -9,16 +15,94 @@ const ACCEPTED_VIDEO_TYPES = [
   "video/quicktime",
 ];
 
+export async function action({ request }) {
+  await authenticate.admin(request);
+
+  try {
+    const formData = await request.formData();
+    const videoFile = formData.get("video");
+    const sourceLanguage =
+      formData.get("sourceLanguage") || "auto";
+    const processingChoice =
+      formData.get("processingChoice") || "translate";
+     const translationMode =
+      formData.get("translationMode") || "replace";
+    if (
+      !videoFile ||
+      typeof videoFile.arrayBuffer !== "function"
+    ) {
+      return {
+        error: "Please select a video before processing.",
+      };
+    }
+
+    if (!ACCEPTED_VIDEO_TYPES.includes(videoFile.type)) {
+      return {
+        error:
+          "Please upload an MP4, WEBM or MOV video file.",
+      };
+    }
+
+    if (videoFile.size > MAX_VIDEO_SIZE) {
+      return {
+        error:
+          "The selected video is larger than the 200 MB limit.",
+      };
+    }
+
+    if (processingChoice !== "translate") {
+      return {
+        error:
+          "This processing option will be connected in the next video build.",
+      };
+    }
+
+        const completedVideo = await translateVideo({
+      videoFile,
+      sourceLanguage,
+      translationMode,
+    });
+
+    return {
+      completedVideoUrl:
+        `data:${completedVideo.mimeType};base64,` +
+        completedVideo.videoBase64,
+      subtitleCount: completedVideo.subtitleCount,
+    };
+  } catch (error) {
+    console.error("Video processing failed:", error);
+
+    if (error instanceof NoTranslatableVideoTextError) {
+      return {
+        error: error.message,
+      };
+    }
+
+    return {
+      error:
+        "The video could not be processed. Please try again.",
+    };
+  }
+}
+
 export default function VideoCleanup() {
+  const fetcher = useFetcher();
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [processingChoice, setProcessingChoice] =
     useState("translate");
   const [sourceLanguage, setSourceLanguage] = useState("auto");
+    const [translationMode, setTranslationMode] =
+    useState("replace");
   const [error, setError] = useState("");
   const [analysisStarted, setAnalysisStarted] = useState(false);
   const [inputKey, setInputKey] = useState(0);
+    const isProcessing = fetcher.state !== "idle";
+  const processingError = fetcher.data?.error;
+  const completedVideoUrl =
+    fetcher.data?.completedVideoUrl;
+  const subtitleCount = fetcher.data?.subtitleCount;
 
   useEffect(() => {
     if (!selectedFile) {
@@ -69,9 +153,31 @@ export default function VideoCleanup() {
     setRightsConfirmed(false);
     setProcessingChoice("translate");
     setSourceLanguage("auto");
+    setTranslationMode("replace");
     setError("");
     setAnalysisStarted(false);
     setInputKey((currentKey) => currentKey + 1);
+  }
+    function startVideoProcessing() {
+    if (!selectedFile || !rightsConfirmed) {
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append("video", selectedFile);
+    formData.append("rightsConfirmed", "true");
+    formData.append(
+      "processingChoice",
+      processingChoice,
+    );
+    formData.append("sourceLanguage", sourceLanguage);
+    formData.append("translationMode", translationMode);
+
+    fetcher.submit(formData, {
+      method: "post",
+      encType: "multipart/form-data",
+    });
   }
 
   return (
@@ -268,14 +374,108 @@ export default function VideoCleanup() {
               Add the GEANOS branded ending
             </label>
           </fieldset>
+                       {processingChoice === "translate" && (
+            <fieldset>
+              <legend>
+                Choose how the English translation should appear
+              </legend>
 
-          <s-banner>
-            The video has passed the upload and setup checks. Actual
-            video processing will be connected in the next build.
+              <label>
+                <input
+                  type="radio"
+                  name="translationMode"
+                  value="replace"
+                  checked={translationMode === "replace"}
+                  onChange={(event) =>
+                    setTranslationMode(event.target.value)
+                  }
+                />{" "}
+                Replace visible foreign text with English
+              </label>
+
+              <br />
+
+              <label>
+                <input
+                  type="radio"
+                  name="translationMode"
+                  value="subtitles"
+                  checked={translationMode === "subtitles"}
+                  onChange={(event) =>
+                    setTranslationMode(event.target.value)
+                  }
+                />{" "}
+                Keep the original text and add English subtitles
+              </label>
+            </fieldset>
+          )}
+
+            {processingChoice !== "translate" && (
+            <s-banner tone="warning">
+              Watermark removal and GEANOS branding will be connected
+              after the translation workflow has been tested.
+            </s-banner>
+          )}
+
+          {processingError && (
+            <s-banner tone="critical">
+              {processingError}
+            </s-banner>
+          )}
+
+          <s-button
+            variant="primary"
+            disabled={
+              isProcessing ||
+              processingChoice !== "translate"
+            }
+            onClick={startVideoProcessing}
+          >
+            {isProcessing
+              ? "Processing Video..."
+              : "Start Video Translation"}
+          </s-button>
+        </section>
+      )}
+
+      {completedVideoUrl && (
+        <section className={styles.mediaCard}>
+          <s-heading>Completed Video</s-heading>
+
+          <s-banner tone="success">
+            Video translation completed successfully. Review the
+            English subtitles before downloading the video.
           </s-banner>
 
-          <s-button disabled>
-            Start Video Processing — Next Build
+          <s-paragraph>
+            English subtitle sections added: {subtitleCount}
+          </s-paragraph>
+
+          <video
+            src={completedVideoUrl}
+            controls
+            style={{
+              display: "block",
+              width: "100%",
+              maxHeight: "600px",
+              borderRadius: "8px",
+              backgroundColor: "#000000",
+            }}
+          >
+            Your browser does not support video playback.
+          </video>
+
+          <p>
+            <a
+              href={completedVideoUrl}
+              download="GEANOS-translated-video.mp4"
+            >
+              Download Completed Video
+            </a>
+          </p>
+
+          <s-button onClick={clearVideo}>
+            Process Another Video
           </s-button>
         </section>
       )}
