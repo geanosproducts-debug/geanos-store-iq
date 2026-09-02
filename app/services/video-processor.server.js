@@ -352,15 +352,16 @@ async function trimVoidOutputSegment({
   outputPath,
   discardLeadingFrames,
   outputFrameCount,
+  frameRate,
 }) {
-  const endFrameExclusive =
+    const endFrameExclusive =
     discardLeadingFrames +
     outputFrameCount;
 
-  const trimFilter =
+    const trimFilter =
     `trim=start_frame=${discardLeadingFrames}:` +
     `end_frame=${endFrameExclusive},` +
-    "setpts=PTS-STARTPTS";
+    `setpts=N/(${frameRate}*TB)`;
 
   await runCommand(getFfmpegCommand(), [
     "-hide_banner",
@@ -373,8 +374,10 @@ async function trimVoidOutputSegment({
     "-vf",
     trimFilter,
     "-an",
-    "-fps_mode",
-    "passthrough",
+   "-fps_mode",
+    "cfr",
+    "-r",
+    String(frameRate),
     "-c:v",
     "libx264",
     "-preset",
@@ -441,13 +444,14 @@ async function reassembleVoidSegments({
   ]);
 }
 
-    async function runVoidCleanup({
+   async function runVoidCleanup({
   videoPath,
   maskPath,
   segmentDirectory,
   concatListPath,
   outputPath,
   frameCount,
+  frameRate,
 }) {
   const segmentPlan = createVoidSegmentPlan({
     frameCount,
@@ -498,13 +502,14 @@ async function reassembleVoidSegments({
       numFrames: segment.numFrames,
     });
 
-    await trimVoidOutputSegment({
+        await trimVoidOutputSegment({
       inputPath: rawCleanedSegmentPath,
       outputPath: cleanedSegmentPath,
       discardLeadingFrames:
         segment.discardLeadingFrames,
       outputFrameCount:
         segment.outputFrameCount,
+      frameRate,
     });
 
     cleanedSegmentPaths.push(
@@ -1763,7 +1768,7 @@ export async function translateVideo({
       });
 
       try {
-        await runVoidCleanup({
+          await runVoidCleanup({
           videoPath: inputPath,
           maskPath: voidMaskPath,
           segmentDirectory:
@@ -1773,6 +1778,7 @@ export async function translateVideo({
           outputPath:
             voidReassembledVideoPath,
           frameCount,
+          frameRate,
         });
 
         renderVideoPath =

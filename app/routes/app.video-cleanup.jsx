@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
-  NoTranslatableVideoTextError,
-  translateVideo,
-} from "../services/video-processor.server";
+  getVideoJob,
+  startVideoJob,
+} from "../services/video-job-manager.server";
 import styles from "../styles/media-tools.module.css";
 
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
@@ -20,23 +20,66 @@ export async function action({ request }) {
 
   try {
     const formData = await request.formData();
-    const videoFile = formData.get("video");
-    const sourceLanguage =
-      formData.get("sourceLanguage") || "auto";
-    const processingChoice =
-      formData.get("processingChoice") || "translate";
-     const translationMode =
-      formData.get("translationMode") || "replace";
-    if (
-      !videoFile ||
-      typeof videoFile.arrayBuffer !== "function"
-    ) {
+    const intent =
+      formData.get("intent") || "start";
+
+    if (intent === "status") {
+      const jobId = formData.get("jobId");
+
+      if (!jobId) {
+        return {
+          error:
+            "The video processing job could not be identified.",
+        };
+      }
+
+      const job = getVideoJob(jobId);
+
+      if (!job) {
+        return {
+          error:
+            "The video processing job is no longer available.",
+        };
+      }
+
       return {
-        error: "Please select a video before processing.",
+        jobId,
+        status: job.status,
+        completedVideoUrl:
+          job.completedVideoUrl,
+        subtitleCount:
+          job.subtitleCount,
+        error: job.error,
       };
     }
 
-    if (!ACCEPTED_VIDEO_TYPES.includes(videoFile.type)) {
+    const videoFile = formData.get("video");
+    const sourceLanguage =
+      formData.get("sourceLanguage") ||
+      "auto";
+    const processingChoice =
+      formData.get("processingChoice") ||
+      "translate";
+    const translationMode =
+      formData.get("translationMode") ||
+      "replace";
+
+    if (
+      !videoFile ||
+      typeof videoFile.arrayBuffer !==
+        "function"
+    ) {
+      return {
+        error:
+          "Please select a video before processing.",
+      };
+    }
+
+    if (
+      !ACCEPTED_VIDEO_TYPES.includes(
+        videoFile.type,
+      )
+    ) {
       return {
         error:
           "Please upload an MP4, WEBM or MOV video file.",
@@ -57,52 +100,74 @@ export async function action({ request }) {
       };
     }
 
-        const completedVideo = await translateVideo({
+    const jobId = startVideoJob({
       videoFile,
       sourceLanguage,
       translationMode,
     });
 
     return {
-      completedVideoUrl:
-        `data:${completedVideo.mimeType};base64,` +
-        completedVideo.videoBase64,
-      subtitleCount: completedVideo.subtitleCount,
+      jobId,
+      status: "queued",
     };
   } catch (error) {
-    console.error("Video processing failed:", error);
-
-    if (error instanceof NoTranslatableVideoTextError) {
-      return {
-        error: error.message,
-      };
-    }
+    console.error(
+      "Video job could not be started:",
+      error,
+    );
 
     return {
       error:
-        "The video could not be processed. Please try again.",
+        "The video could not be submitted for processing. Please try again.",
     };
   }
 }
 
 export default function VideoCleanup() {
   const fetcher = useFetcher();
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
-  const [processingChoice, setProcessingChoice] =
-    useState("translate");
-  const [sourceLanguage, setSourceLanguage] = useState("auto");
-    const [translationMode, setTranslationMode] =
+  const statusFetcher = useFetcher();
+
+  const [selectedFile, setSelectedFile] =
+    useState(null);
+  const [previewUrl, setPreviewUrl] =
+    useState("");
+  const [rightsConfirmed, setRightsConfirmed] =
+    useState(false);
+  const [
+    processingChoice,
+    setProcessingChoice,
+  ] = useState("translate");
+  const [sourceLanguage, setSourceLanguage] =
+    useState("auto");
+  const [translationMode, setTranslationMode] =
     useState("replace");
   const [error, setError] = useState("");
-  const [analysisStarted, setAnalysisStarted] = useState(false);
+  const [analysisStarted, setAnalysisStarted] =
+    useState(false);
   const [inputKey, setInputKey] = useState(0);
-    const isProcessing = fetcher.state !== "idle";
-  const processingError = fetcher.data?.error;
+
+  const jobId = fetcher.data?.jobId;
+
+  const statusData =
+    statusFetcher.data?.jobId === jobId
+      ? statusFetcher.data
+      : fetcher.data;
+
+  const jobStatus = statusData?.status;
+
+  const isProcessing =
+    fetcher.state !== "idle" ||
+    Boolean(
+      jobId &&
+        jobStatus !== "completed" &&
+        jobStatus !== "failed",
+    );
+
+  const processingError = statusData?.error;
   const completedVideoUrl =
-    fetcher.data?.completedVideoUrl;
-  const subtitleCount = fetcher.data?.subtitleCount;
+    statusData?.completedVideoUrl;
+  const subtitleCount =
+    statusData?.subtitleCount;
 
   useEffect(() => {
     if (!selectedFile) {
@@ -117,6 +182,49 @@ export default function VideoCleanup() {
       URL.revokeObjectURL(videoUrl);
     };
   }, [selectedFile]);
+
+    useEffect(() => {
+    if (
+      !jobId ||
+      jobStatus === "completed" ||
+      jobStatus === "failed"
+    ) {
+      return undefined;
+    }
+
+    function checkJobStatus() {
+      const statusFormData =
+        new FormData();
+
+      statusFormData.append(
+        "intent",
+        "status",
+      );
+
+      statusFormData.append(
+        "jobId",
+        jobId,
+      );
+
+      statusFetcher.submit(
+        statusFormData,
+        {
+          method: "post",
+        },
+      );
+    }
+
+    checkJobStatus();
+
+    const intervalId = window.setInterval(
+      checkJobStatus,
+      3000,
+    );
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [jobId, jobStatus]);
 
   function handleFileChange(event) {
     const file = event.target.files?.[0];
