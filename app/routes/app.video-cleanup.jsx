@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
@@ -8,20 +8,56 @@ import {
 import styles from "../styles/media-tools.module.css";
 
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
-
+const MAX_REMOVAL_AREAS = 20;
 const ACCEPTED_VIDEO_TYPES = [
   "video/mp4",
   "video/webm",
   "video/quicktime",
 ];
 
+function parseRemovalAreas(value) {
+  try {
+    const parsedValue = JSON.parse(value || "[]");
+    if (!Array.isArray(parsedValue)) return [];
+
+    return parsedValue
+      .map((area) => ({
+        x: Number(area?.x),
+        y: Number(area?.y),
+        width: Number(area?.width),
+        height: Number(area?.height),
+        startTime: Number(area?.startTime),
+        endTime: Number(area?.endTime),
+      }))
+      .filter(
+        (area) =>
+          Number.isFinite(area.x) &&
+          Number.isFinite(area.y) &&
+          Number.isFinite(area.width) &&
+          Number.isFinite(area.height) &&
+          Number.isFinite(area.startTime) &&
+          Number.isFinite(area.endTime) &&
+          area.x >= 0 &&
+          area.y >= 0 &&
+          area.width >= 0.5 &&
+          area.height >= 0.5 &&
+          area.startTime >= 0 &&
+          area.endTime > area.startTime &&
+          area.x + area.width <= 100 &&
+          area.y + area.height <= 100,
+      )
+      .slice(0, MAX_REMOVAL_AREAS);
+  } catch {
+    return [];
+  }
+}
+
 export async function action({ request }) {
   await authenticate.admin(request);
 
   try {
     const formData = await request.formData();
-    const intent =
-      formData.get("intent") || "start";
+    const intent = formData.get("intent") || "start";
 
     if (intent === "status") {
       const jobId = formData.get("jobId");
@@ -45,29 +81,29 @@ export async function action({ request }) {
       return {
         jobId,
         status: job.status,
-        completedVideoUrl:
-          job.completedVideoUrl,
-        subtitleCount:
-          job.subtitleCount,
+        completedVideoUrl: job.completedVideoUrl,
+        removalAreaCount: job.removalAreaCount,
         error: job.error,
       };
     }
 
     const videoFile = formData.get("video");
-    const sourceLanguage =
-      formData.get("sourceLanguage") ||
-      "auto";
-    const processingChoice =
-      formData.get("processingChoice") ||
-      "translate";
-    const translationMode =
-      formData.get("translationMode") ||
-      "replace";
+    const rightsConfirmed =
+      formData.get("rightsConfirmed") === "true";
+    const removalAreas = parseRemovalAreas(
+      formData.get("removalAreas"),
+    );
+
+    if (!rightsConfirmed) {
+      return {
+        error:
+          "Confirm that you have permission to modify this video.",
+      };
+    }
 
     if (
       !videoFile ||
-      typeof videoFile.arrayBuffer !==
-        "function"
+      typeof videoFile.arrayBuffer !== "function"
     ) {
       return {
         error:
@@ -76,9 +112,7 @@ export async function action({ request }) {
     }
 
     if (
-      !ACCEPTED_VIDEO_TYPES.includes(
-        videoFile.type,
-      )
+      !ACCEPTED_VIDEO_TYPES.includes(videoFile.type)
     ) {
       return {
         error:
@@ -93,17 +127,16 @@ export async function action({ request }) {
       };
     }
 
-    if (processingChoice !== "translate") {
+    if (removalAreas.length === 0) {
       return {
         error:
-          "This processing option will be connected in the next video build.",
+          "Mark at least one text area before processing.",
       };
     }
 
     const jobId = startVideoJob({
       videoFile,
-      sourceLanguage,
-      translationMode,
+      removalAreas,
     });
 
     return {
@@ -112,7 +145,7 @@ export async function action({ request }) {
     };
   } catch (error) {
     console.error(
-      "Video job could not be started:",
+      "Video text-removal job could not be started:",
       error,
     );
 
@@ -123,9 +156,23 @@ export async function action({ request }) {
   }
 }
 
+function normaliseRectangle(start, end) {
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+
+  return {
+    x,
+    y,
+    width: Math.max(start.x, end.x) - x,
+    height: Math.max(start.y, end.y) - y,
+  };
+}
+
 export default function VideoCleanup() {
   const fetcher = useFetcher();
   const statusFetcher = useFetcher();
+  const previewContainerRef = useRef(null);
+  const videoRef = useRef(null);
 
   const [selectedFile, setSelectedFile] =
     useState(null);
@@ -133,18 +180,20 @@ export default function VideoCleanup() {
     useState("");
   const [rightsConfirmed, setRightsConfirmed] =
     useState(false);
-  const [
-    processingChoice,
-    setProcessingChoice,
-  ] = useState("translate");
-  const [sourceLanguage, setSourceLanguage] =
-    useState("auto");
-  const [translationMode, setTranslationMode] =
-    useState("replace");
+  const [removalAreas, setRemovalAreas] =
+    useState([]);
+  const [selectionMode, setSelectionMode] =
+    useState(false);
+  const [dragStart, setDragStart] =
+    useState(null);
+  const [draftArea, setDraftArea] =
+    useState(null);
   const [error, setError] = useState("");
-  const [analysisStarted, setAnalysisStarted] =
+  const [setupStarted, setSetupStarted] =
     useState(false);
   const [inputKey, setInputKey] = useState(0);
+  const [videoDuration, setVideoDuration] =
+    useState(0);
 
   const jobId = fetcher.data?.jobId;
 
@@ -166,8 +215,8 @@ export default function VideoCleanup() {
   const processingError = statusData?.error;
   const completedVideoUrl =
     statusData?.completedVideoUrl;
-  const subtitleCount =
-    statusData?.subtitleCount;
+  const removalAreaCount =
+    statusData?.removalAreaCount;
 
   useEffect(() => {
     if (!selectedFile) {
@@ -175,15 +224,15 @@ export default function VideoCleanup() {
       return undefined;
     }
 
-    const videoUrl = URL.createObjectURL(selectedFile);
+    const videoUrl =
+      URL.createObjectURL(selectedFile);
+
     setPreviewUrl(videoUrl);
 
-    return () => {
-      URL.revokeObjectURL(videoUrl);
-    };
+    return () => URL.revokeObjectURL(videoUrl);
   }, [selectedFile]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (
       !jobId ||
       jobStatus === "completed" ||
@@ -193,51 +242,44 @@ export default function VideoCleanup() {
     }
 
     function checkJobStatus() {
-      const statusFormData =
-        new FormData();
+      const statusFormData = new FormData();
 
-      statusFormData.append(
-        "intent",
-        "status",
-      );
+      statusFormData.append("intent", "status");
+      statusFormData.append("jobId", jobId);
 
-      statusFormData.append(
-        "jobId",
-        jobId,
-      );
-
-      statusFetcher.submit(
-        statusFormData,
-        {
-          method: "post",
-        },
-      );
+      statusFetcher.submit(statusFormData, {
+        method: "post",
+      });
     }
 
     checkJobStatus();
 
     const intervalId = window.setInterval(
       checkJobStatus,
-      3000,
+      2000,
     );
 
-    return () => {
+    return () =>
       window.clearInterval(intervalId);
-    };
   }, [jobId, jobStatus]);
 
   function handleFileChange(event) {
     const file = event.target.files?.[0];
 
     setError("");
-    setAnalysisStarted(false);
+    setSetupStarted(false);
+    setRemovalAreas([]);
+    setSelectionMode(false);
+    setVideoDuration(0);
 
     if (!file) {
       setSelectedFile(null);
       return;
     }
 
-    if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
+    if (
+      !ACCEPTED_VIDEO_TYPES.includes(file.type)
+    ) {
       setSelectedFile(null);
       setError(
         "Please select an MP4, WEBM or MOV video file.",
@@ -259,28 +301,193 @@ export default function VideoCleanup() {
   function clearVideo() {
     setSelectedFile(null);
     setRightsConfirmed(false);
-    setProcessingChoice("translate");
-    setSourceLanguage("auto");
-    setTranslationMode("replace");
+    setRemovalAreas([]);
+    setSelectionMode(false);
+    setDraftArea(null);
+    setDragStart(null);
     setError("");
-    setAnalysisStarted(false);
-    setInputKey((currentKey) => currentKey + 1);
+    setSetupStarted(false);
+    setInputKey(
+      (currentKey) => currentKey + 1,
+    );
+    setVideoDuration(0);
   }
-    function startVideoProcessing() {
-    if (!selectedFile || !rightsConfirmed) {
+
+  function getPointerPercentage(event) {
+    const video = videoRef.current;
+
+    if (!video) return null;
+
+    const bounds =
+      video.getBoundingClientRect();
+
+    return {
+      x: Math.min(
+        Math.max(
+          ((event.clientX - bounds.left) /
+            bounds.width) *
+            100,
+          0,
+        ),
+        100,
+      ),
+      y: Math.min(
+        Math.max(
+          ((event.clientY - bounds.top) /
+            bounds.height) *
+            100,
+          0,
+        ),
+        100,
+      ),
+    };
+  }
+
+  function beginAreaSelection() {
+    videoRef.current?.pause();
+    setSelectionMode(true);
+    setDraftArea(null);
+    setDragStart(null);
+    setError("");
+  }
+
+  function handlePointerDown(event) {
+    if (!selectionMode) return;
+
+    const point = getPointerPercentage(event);
+
+    if (!point) return;
+
+    event.currentTarget.setPointerCapture(
+      event.pointerId,
+    );
+
+    setDragStart(point);
+
+    setDraftArea({
+      x: point.x,
+      y: point.y,
+      width: 0,
+      height: 0,
+    });
+  }
+
+  function handlePointerMove(event) {
+    if (!selectionMode || !dragStart) return;
+
+    const point = getPointerPercentage(event);
+
+    if (point) {
+      setDraftArea(
+        normaliseRectangle(dragStart, point),
+      );
+    }
+  }
+
+  function finishAreaSelection(event) {
+    if (!selectionMode || !dragStart) return;
+
+    const point = getPointerPercentage(event);
+
+    const completedArea = point
+      ? normaliseRectangle(dragStart, point)
+      : draftArea;
+
+    if (
+      completedArea?.width >= 0.5 &&
+      completedArea?.height >= 0.5
+    ) {
+      const startTime = Math.max(
+        Number(videoRef.current?.currentTime) ||
+          0,
+        0,
+      );
+
+      const endTime = Math.min(
+        startTime + 5,
+        videoDuration || startTime + 5,
+      );
+
+      setRemovalAreas((currentAreas) =>
+        [
+          ...currentAreas,
+          {
+            ...completedArea,
+            startTime,
+            endTime: Math.max(
+              endTime,
+              startTime + 0.1,
+            ),
+          },
+        ].slice(0, MAX_REMOVAL_AREAS),
+      );
+    } else {
+      setError(
+        "Drag a larger rectangle around the text.",
+      );
+    }
+
+    setSelectionMode(false);
+    setDragStart(null);
+    setDraftArea(null);
+  }
+
+  function removeMarkedArea(areaIndex) {
+    setRemovalAreas((currentAreas) =>
+      currentAreas.filter(
+        (_, index) => index !== areaIndex,
+      ),
+    );
+  }
+
+  function updateAreaTime(
+    areaIndex,
+    field,
+    value,
+  ) {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return;
+    }
+
+    setRemovalAreas((currentAreas) =>
+      currentAreas.map((area, index) => {
+        if (index !== areaIndex) {
+          return area;
+        }
+
+        return {
+          ...area,
+          [field]: Math.max(
+            numericValue,
+            0,
+          ),
+        };
+      }),
+    );
+  }
+
+  function startVideoProcessing() {
+    if (
+      !selectedFile ||
+      !rightsConfirmed ||
+      removalAreas.length === 0
+    ) {
       return;
     }
 
     const formData = new FormData();
 
     formData.append("video", selectedFile);
-    formData.append("rightsConfirmed", "true");
     formData.append(
-      "processingChoice",
-      processingChoice,
+      "rightsConfirmed",
+      "true",
     );
-    formData.append("sourceLanguage", sourceLanguage);
-    formData.append("translationMode", translationMode);
+    formData.append(
+      "removalAreas",
+      JSON.stringify(removalAreas),
+    );
 
     fetcher.submit(formData, {
       method: "post",
@@ -288,10 +495,17 @@ export default function VideoCleanup() {
     });
   }
 
+  const visibleAreas = draftArea
+    ? [...removalAreas, draftArea]
+    : removalAreas;
+
   return (
-    <s-page heading="Video Translator & Cleanup">
+    <s-page heading="Video Text Removal">
       <section className={styles.mediaCard}>
-        <s-button href="/app/media-tools" variant="primary">
+        <s-button
+          href="/app/media-tools"
+          variant="primary"
+        >
           ← Back to Media Tools
         </s-button>
       </section>
@@ -300,9 +514,9 @@ export default function VideoCleanup() {
         <s-heading>Upload Video</s-heading>
 
         <s-paragraph>
-          Upload a product video to translate visible text, add English
-          subtitles, remove authorised overlays or prepare the video
-          for GEANOS branding.
+          Upload an authorised product video and
+          mark the areas containing text or
+          overlays that should be removed.
         </s-paragraph>
 
         <input
@@ -313,11 +527,15 @@ export default function VideoCleanup() {
         />
 
         <s-paragraph>
-          Accepted formats: MP4, WEBM and MOV. Maximum file size:
-          200 MB.
+          Accepted formats: MP4, WEBM and MOV.
+          Maximum file size: 200 MB.
         </s-paragraph>
 
-        {error && <s-banner tone="critical">{error}</s-banner>}
+        {error && (
+          <s-banner tone="critical">
+            {error}
+          </s-banner>
+        )}
       </section>
 
       {selectedFile && (
@@ -330,22 +548,187 @@ export default function VideoCleanup() {
 
           <s-paragraph>
             File size:{" "}
-            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+            {(
+              selectedFile.size /
+              (1024 * 1024)
+            ).toFixed(2)}{" "}
+            MB
           </s-paragraph>
 
-          <video
-            src={previewUrl}
-            controls
+          <div
+            ref={previewContainerRef}
             style={{
-              display: "block",
+              position: "relative",
               width: "100%",
-              maxHeight: "600px",
-              borderRadius: "8px",
+              maxWidth: "1280px",
+              lineHeight: 0,
               backgroundColor: "#000000",
+              borderRadius: "8px",
+              overflow: "hidden",
             }}
           >
-            Your browser does not support video playback.
-          </video>
+            <video
+              ref={videoRef}
+              src={previewUrl}
+              controls={!selectionMode}
+              onLoadedMetadata={(event) => {
+                setVideoDuration(
+                  Number(
+                    event.currentTarget.duration,
+                  ) || 0,
+                );
+              }}
+              style={{
+                display: "block",
+                width: "100%",
+                height: "auto",
+              }}
+            >
+              Your browser does not support video
+              playback.
+            </video>
+
+            {visibleAreas.map(
+              (area, index) => (
+                <div
+                  key={`${index}-${area.x}-${area.y}`}
+                  style={{
+                    position: "absolute",
+                    left: `${area.x}%`,
+                    top: `${area.y}%`,
+                    width: `${area.width}%`,
+                    height: `${area.height}%`,
+                    border:
+                      "3px solid #ff2d2d",
+                    backgroundColor:
+                      "rgba(255, 45, 45, 0.18)",
+                    boxSizing: "border-box",
+                    pointerEvents: "none",
+                  }}
+                />
+              ),
+            )}
+
+            {selectionMode && (
+              <div
+                role="presentation"
+                onPointerDown={
+                  handlePointerDown
+                }
+                onPointerMove={
+                  handlePointerMove
+                }
+                onPointerUp={
+                  finishAreaSelection
+                }
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  cursor: "crosshair",
+                  touchAction: "none",
+                  backgroundColor:
+                    "rgba(0, 0, 0, 0.05)",
+                }}
+              />
+            )}
+          </div>
+
+          <s-paragraph>
+            Pause on a clear frame, select Mark
+            Text Area, then drag a tight rectangle
+            around the writing. Add more areas
+            when required.
+          </s-paragraph>
+
+          <s-button
+            variant="primary"
+            disabled={
+              selectionMode ||
+              removalAreas.length >=
+                MAX_REMOVAL_AREAS
+            }
+            onClick={beginAreaSelection}
+          >
+            {selectionMode
+              ? "Drag Around the Text"
+              : "Mark Text Area"}
+          </s-button>
+
+          {selectionMode && (
+            <s-button
+              onClick={() => {
+                setSelectionMode(false);
+                setDragStart(null);
+                setDraftArea(null);
+              }}
+            >
+              Cancel Marking
+            </s-button>
+          )}
+
+          {removalAreas.length > 0 && (
+            <div>
+              <s-heading>
+                Marked Areas
+              </s-heading>
+
+              {removalAreas.map(
+                (area, index) => (
+                  <p key={index}>
+                    Text area {index + 1}:{" "}
+                    <label>
+                      Start (seconds){" "}
+                      <input
+                        type="number"
+                        min="0"
+                        max={
+                          videoDuration ||
+                          undefined
+                        }
+                        step="0.1"
+                        value={area.startTime}
+                        onChange={(event) =>
+                          updateAreaTime(
+                            index,
+                            "startTime",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>{" "}
+                    <label>
+                      End (seconds){" "}
+                      <input
+                        type="number"
+                        min="0.1"
+                        max={
+                          videoDuration ||
+                          undefined
+                        }
+                        step="0.1"
+                        value={area.endTime}
+                        onChange={(event) =>
+                          updateAreaTime(
+                            index,
+                            "endTime",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeMarkedArea(index)
+                      }
+                    >
+                      Remove marking
+                    </button>
+                  </p>
+                ),
+              )}
+            </div>
+          )}
 
           <s-button onClick={clearVideo}>
             Remove Video
@@ -361,169 +744,81 @@ export default function VideoCleanup() {
             type="checkbox"
             checked={rightsConfirmed}
             onChange={(event) =>
-              setRightsConfirmed(event.target.checked)
+              setRightsConfirmed(
+                event.target.checked,
+              )
             }
           />{" "}
-          I confirm that I own this media or have permission to
-          translate, modify and remove its watermarks or overlays for
-          promotional purposes in my store or stores only.
+          I confirm that I own this media or have
+          permission to modify and remove its
+          text, watermarks or overlays for
+          promotional purposes in my store or
+          stores only.
         </label>
       </section>
 
       <section className={styles.mediaCard}>
-        <s-heading>Video Processing Options</s-heading>
+        <s-heading>
+          Fast Text Removal
+        </s-heading>
 
         <s-unordered-list>
           <s-list-item>
-            Detect visible foreign text across video frames
+            Removes the areas you mark on the
+            video
           </s-list-item>
+
           <s-list-item>
-            Translate detected text into English
+            Retains the original video length and
+            audio
           </s-list-item>
+
           <s-list-item>
-            Add English subtitles when required
+            Processes locally without translation
+            or an external AI queue
           </s-list-item>
+
           <s-list-item>
-            Remove authorised watermarks or overlays
-          </s-list-item>
-          <s-list-item>
-            Prepare a completed video for preview and download
+            Uses one video credit when credits are
+            connected
           </s-list-item>
         </s-unordered-list>
 
         <s-button
           variant="primary"
-          disabled={!selectedFile || !rightsConfirmed}
-          onClick={() => setAnalysisStarted(true)}
+          disabled={
+            !selectedFile ||
+            !rightsConfirmed ||
+            removalAreas.length === 0
+          }
+          onClick={() =>
+            setSetupStarted(true)
+          }
         >
-          Analyse Video
+          Review Text Removal
         </s-button>
       </section>
 
-      {analysisStarted && selectedFile && (
+      {setupStarted && selectedFile && (
         <section className={styles.mediaCard}>
-          <s-heading>Video Analysis Setup</s-heading>
+          <s-heading>
+            Ready to Process
+          </s-heading>
 
           <s-banner tone="success">
-            Video accepted. Choose the work required before processing
-            begins.
-          </s-banner>
-
-          <s-banner tone="warning">
-            Video processing can take several minutes. Please keep this
-            page open and start processing only once.
+            Video accepted with{" "}
+            {removalAreas.length} marked text area
+            {removalAreas.length === 1
+              ? ""
+              : "s"}
+            .
           </s-banner>
 
           <s-paragraph>
-            Selected video: {selectedFile.name}
+            Each marked area will apply only
+            between its selected start and end
+            times.
           </s-paragraph>
-
-          <label>
-            Original language
-            <br />
-
-            <select
-              value={sourceLanguage}
-              onChange={(event) =>
-                setSourceLanguage(event.target.value)
-              }
-            >
-              <option value="auto">Detect automatically</option>
-              <option value="chinese">Chinese</option>
-              <option value="japanese">Japanese</option>
-              <option value="korean">Korean</option>
-              <option value="other">Other language</option>
-            </select>
-          </label>
-
-          <fieldset>
-            <legend>Choose the required processing</legend>
-
-            <label>
-              <input
-                type="radio"
-                name="videoProcessingChoice"
-                value="translate"
-                checked={processingChoice === "translate"}
-                onChange={(event) =>
-                  setProcessingChoice(event.target.value)
-                }
-              />{" "}
-              Translate visible text and add English subtitles
-            </label>
-
-            <br />
-
-            <label>
-              <input
-                type="radio"
-                name="videoProcessingChoice"
-                value="cleanup"
-                checked={processingChoice === "cleanup"}
-                onChange={(event) =>
-                  setProcessingChoice(event.target.value)
-                }
-              />{" "}
-              Remove authorised watermarks or overlays
-            </label>
-
-            <br />
-
-            <label>
-              <input
-                type="radio"
-                name="videoProcessingChoice"
-                value="branding"
-                checked={processingChoice === "branding"}
-                onChange={(event) =>
-                  setProcessingChoice(event.target.value)
-                }
-              />{" "}
-              Add the GEANOS branded ending
-            </label>
-          </fieldset>
-                       {processingChoice === "translate" && (
-            <fieldset>
-              <legend>
-                Choose how the English translation should appear
-              </legend>
-
-              <label>
-                <input
-                  type="radio"
-                  name="translationMode"
-                  value="replace"
-                  checked={translationMode === "replace"}
-                  onChange={(event) =>
-                    setTranslationMode(event.target.value)
-                  }
-                />{" "}
-                Replace visible foreign text with English
-              </label>
-
-              <br />
-
-              <label>
-                <input
-                  type="radio"
-                  name="translationMode"
-                  value="subtitles"
-                  checked={translationMode === "subtitles"}
-                  onChange={(event) =>
-                    setTranslationMode(event.target.value)
-                  }
-                />{" "}
-                Keep the original text and add English subtitles
-              </label>
-            </fieldset>
-          )}
-
-            {processingChoice !== "translate" && (
-            <s-banner tone="warning">
-              Watermark removal and GEANOS branding will be connected
-              after the translation workflow has been tested.
-            </s-banner>
-          )}
 
           {processingError && (
             <s-banner tone="critical">
@@ -535,28 +830,32 @@ export default function VideoCleanup() {
             variant="primary"
             disabled={
               isProcessing ||
-              processingChoice !== "translate"
+              removalAreas.length === 0
             }
             onClick={startVideoProcessing}
           >
             {isProcessing
-              ? "Processing Video..."
-              : "Start Video Translation"}
+              ? "Removing Video Text..."
+              : "Start Text Removal"}
           </s-button>
         </section>
       )}
 
       {completedVideoUrl && (
         <section className={styles.mediaCard}>
-          <s-heading>Completed Video</s-heading>
+          <s-heading>
+            Completed Video
+          </s-heading>
 
           <s-banner tone="success">
-            Video translation completed successfully. Review the
-            English subtitles before downloading the video.
+            Video text removal completed
+            successfully. Review the result before
+            downloading.
           </s-banner>
 
           <s-paragraph>
-            English subtitle sections added: {subtitleCount}
+            Text areas removed:{" "}
+            {removalAreaCount}
           </s-paragraph>
 
           <video
@@ -570,13 +869,14 @@ export default function VideoCleanup() {
               backgroundColor: "#000000",
             }}
           >
-            Your browser does not support video playback.
+            Your browser does not support video
+            playback.
           </video>
 
           <p>
             <a
               href={completedVideoUrl}
-              download="GEANOS-translated-video.mp4"
+              download="GEANOS-text-removed-video.mp4"
             >
               Download Completed Video
             </a>

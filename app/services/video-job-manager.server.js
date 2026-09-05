@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  NoTranslatableVideoTextError,
-  translateVideo,
-} from "./video-processor.server";
+import { removeVideoText } from "./video-processor.server";
 
 const videoJobs =
   globalThis.__geanosVideoJobs ||
@@ -13,8 +10,7 @@ globalThis.__geanosVideoJobs = videoJobs;
 
 export function startVideoJob({
   videoFile,
-  sourceLanguage,
-  translationMode,
+  removalAreas,
 }) {
   const jobId = randomUUID();
 
@@ -33,10 +29,9 @@ export function startVideoJob({
 
     try {
       const completedVideo =
-        await translateVideo({
+        await removeVideoText({
           videoFile,
-          sourceLanguage,
-          translationMode,
+          removalAreas,
         });
 
       videoJobs.set(jobId, {
@@ -44,8 +39,8 @@ export function startVideoJob({
         completedVideoUrl:
           `data:${completedVideo.mimeType};base64,` +
           completedVideo.videoBase64,
-        subtitleCount:
-          completedVideo.subtitleCount,
+        removalAreaCount:
+          completedVideo.removalAreaCount,
         createdAt:
           videoJobs.get(jobId)?.createdAt ||
           Date.now(),
@@ -58,8 +53,7 @@ export function startVideoJob({
       );
 
       const errorMessage =
-        error instanceof
-        NoTranslatableVideoTextError
+        error instanceof Error
           ? error.message
           : "The video could not be processed. Please try again.";
 
