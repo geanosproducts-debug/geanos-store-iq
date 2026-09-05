@@ -2210,20 +2210,31 @@ export async function removeVideoText({
     .map((area) => ({
       x: clampPercentage(area?.x),
       y: clampPercentage(area?.y),
-      width: clampPercentage(area?.width),
-      height: clampPercentage(area?.height),
+      width: clampPercentage(
+        area?.width,
+      ),
+      height: clampPercentage(
+        area?.height,
+      ),
       startTime: Math.max(
         Number(area?.startTime) || 0,
         0,
       ),
       endTime:
         Number(area?.endTime) || 0,
+           cleanupMethod:
+        area?.cleanupMethod === "local" ||
+        area?.cleanupMethod === "background"
+          ? area.cleanupMethod
+          : "diagnostic",
     }))
     .filter(
       (area) =>
         area.width >= 0.5 &&
         area.height >= 0.5 &&
-        Number.isFinite(area.startTime) &&
+        Number.isFinite(
+          area.startTime,
+        ) &&
         Number.isFinite(area.endTime) &&
         area.endTime > area.startTime &&
         area.x + area.width <= 100 &&
@@ -2246,8 +2257,9 @@ export async function removeVideoText({
     );
 
   const inputExtension =
-    path.extname(videoFile.name || "") ||
-    ".mp4";
+    path.extname(
+      videoFile.name || "",
+    ) || ".mp4";
 
   const inputPath = path.join(
     temporaryDirectory,
@@ -2272,12 +2284,17 @@ export async function removeVideoText({
     const {
       width: videoWidth,
       height: videoHeight,
-    } = await getVideoInformation(inputPath);
+    } = await getVideoInformation(
+      inputPath,
+    );
 
     logRemovalStage("Video inspected");
 
-    const removalFilters =
-      validRemovalAreas.map((area) => {
+    const filterParts = [];
+    let currentVideoLabel = "0:v:0";
+
+    validRemovalAreas.forEach(
+      (area, index) => {
         const x = Math.max(
           Math.floor(
             videoWidth * (area.x / 100),
@@ -2314,15 +2331,20 @@ export async function removeVideoText({
           2,
         );
 
+        const timeRange =
+          `enable='between(t,${area.startTime.toFixed(
+            3,
+          )},${area.endTime.toFixed(
+            3,
+          )})'`;
+
+        const outputLabel =
+          `processed_${index}`;
+
         console.log(
           "[TEXT REMOVAL DIAGNOSTIC]",
           {
-            browserPercentages: {
-              x: area.x,
-              y: area.y,
-              width: area.width,
-              height: area.height,
-            },
+            browserPercentages: area,
             encodedPixels: {
               x,
               y,
@@ -2337,55 +2359,224 @@ export async function removeVideoText({
               startTime: area.startTime,
               endTime: area.endTime,
             },
+            cleanupMethod:
+              area.cleanupMethod,
           },
         );
 
-        return (
-          `drawbox=x=${x}:y=${y}` +
-          `:w=${width}:h=${height}` +
-          ":color=red@0.95:t=5" +
-          `:enable='between(t,${area.startTime.toFixed(
-            3,
-          )},${area.endTime.toFixed(
-            3,
-          )})'`
+              if (
+          area.cleanupMethod ===
+          "background"
+        ) {
+          const horizontalPadding =
+            Math.max(
+              4,
+              Math.round(videoWidth * 0.005),
+            );
+
+          const verticalPadding =
+            Math.max(
+              4,
+              Math.round(videoHeight * 0.008),
+            );
+
+          const safeX = Math.max(
+            0,
+            x - horizontalPadding,
+          );
+
+          const safeY = Math.max(
+            0,
+            y - verticalPadding,
+          );
+
+          const safeRight = Math.min(
+            videoWidth,
+            x +
+              width +
+              horizontalPadding,
+          );
+
+          const safeBottom = Math.min(
+            videoHeight,
+            y +
+              height +
+              verticalPadding,
+          );
+
+          const safeWidth = Math.max(
+            2,
+            safeRight - safeX,
+          );
+
+          const safeHeight = Math.max(
+            2,
+            safeBottom - safeY,
+          );
+
+          const sampleHeight = Math.max(
+            2,
+            Math.min(
+              12,
+              Math.floor(
+                safeHeight / 6,
+              ),
+            ),
+          );
+
+          const sampleGap = Math.max(
+            6,
+            sampleHeight,
+          );
+
+          const spaceBelow =
+            videoHeight -
+            (safeY + safeHeight);
+
+          const sourceY =
+            spaceBelow >=
+            sampleGap + sampleHeight
+              ? safeY +
+                safeHeight +
+                sampleGap
+              : Math.max(
+                  0,
+                  safeY -
+                    sampleGap -
+                    sampleHeight,
+                );
+
+          const splitBaseLabel =
+            `background_base_${index}`;
+          const splitSourceLabel =
+            `background_source_${index}`;
+          const patchLabel =
+            `background_patch_${index}`;
+          const scaledPatchLabel =
+            `background_scaled_${index}`;
+          const softenedPatchLabel =
+            `background_softened_${index}`;
+
+          filterParts.push(
+            `[${currentVideoLabel}]split=2` +
+              `[${splitBaseLabel}]` +
+              `[${splitSourceLabel}]`,
+          );
+
+          filterParts.push(
+            `[${splitSourceLabel}]` +
+              `crop=w=${safeWidth}` +
+              `:h=${sampleHeight}` +
+              `:x=${safeX}:y=${sourceY}` +
+              `[${patchLabel}]`,
+          );
+
+          filterParts.push(
+            `[${patchLabel}]` +
+              `scale=w=${safeWidth}` +
+              `:h=${safeHeight}` +
+              `[${scaledPatchLabel}]`,
+          );
+
+          filterParts.push(
+            `[${scaledPatchLabel}]` +
+              "gblur=sigma=2" +
+              `[${softenedPatchLabel}]`,
+          );
+
+          filterParts.push(
+            `[${splitBaseLabel}]` +
+              `[${softenedPatchLabel}]` +
+              `overlay=x=${safeX}` +
+              `:y=${safeY}` +
+              `:${timeRange}` +
+              `[${outputLabel}]`,
+          );
+
+          currentVideoLabel =
+            outputLabel;
+          return;
+        }
+
+        if (
+          area.cleanupMethod === "local"
+        ) {
+          const safeX = Math.max(1, x);
+          const safeY = Math.max(1, y);
+          const safeWidth = Math.max(
+            2,
+            Math.min(
+              width,
+              videoWidth - safeX - 1,
+            ),
+          );
+          const safeHeight = Math.max(
+            2,
+            Math.min(
+              height,
+              videoHeight - safeY - 1,
+            ),
+          );
+
+          filterParts.push(
+            `[${currentVideoLabel}]` +
+              `delogo=x=${safeX}` +
+              `:y=${safeY}` +
+              `:w=${safeWidth}` +
+              `:h=${safeHeight}` +
+              ":show=0" +
+              `:${timeRange}` +
+              `[${outputLabel}]`,
+          );
+
+          currentVideoLabel =
+            outputLabel;
+          return;
+        }
+
+        filterParts.push(
+          `[${currentVideoLabel}]` +
+            `drawbox=x=${x}:y=${y}` +
+            `:w=${width}:h=${height}` +
+            ":color=red@0.95:t=5" +
+            `:${timeRange}` +
+            `[${outputLabel}]`,
         );
-      });
 
-    await runCommand(
-      getFfmpegCommand(),
-      [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-i",
-        inputPath,
-        "-vf",
-        removalFilters.join(","),
-        "-map",
-        "0:v:0",
-        "-map",
-        "0:a?",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-crf",
-        "22",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "copy",
-        "-movflags",
-        "+faststart",
-        "-y",
-        outputPath,
-      ],
+        currentVideoLabel = outputLabel;
+      },
     );
 
+    await runCommand(getFfmpegCommand(), [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      inputPath,
+      "-filter_complex",
+      filterParts.join(";"),
+      "-map",
+      `[${currentVideoLabel}]`,
+      "-map",
+      "0:a?",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
+      "-crf",
+      "22",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "copy",
+      "-movflags",
+      "+faststart",
+      "-y",
+      outputPath,
+    ]);
     logRemovalStage(
-      "FFmpeg diagnostic completed",
-    );
+      "FFmpeg cleanup completed",
+    );   
 
     const completedVideo =
       await fs.readFile(outputPath);
@@ -2396,15 +2587,20 @@ export async function removeVideoText({
 
     return {
       videoBase64:
-        completedVideo.toString("base64"),
+        completedVideo.toString(
+          "base64",
+        ),
       mimeType: "video/mp4",
       removalAreaCount:
         validRemovalAreas.length,
     };
   } finally {
-    await fs.rm(temporaryDirectory, {
-      recursive: true,
-      force: true,
-    });
+    await fs.rm(
+      temporaryDirectory,
+      {
+        recursive: true,
+        force: true,
+      },
+    );
   }
-} 
+}

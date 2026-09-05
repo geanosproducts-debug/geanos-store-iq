@@ -28,6 +28,11 @@ function parseRemovalAreas(value) {
         height: Number(area?.height),
         startTime: Number(area?.startTime),
         endTime: Number(area?.endTime),
+             cleanupMethod:
+        area?.cleanupMethod === "local" ||
+        area?.cleanupMethod === "background"
+          ? area.cleanupMethod
+          : "diagnostic",
       }))
       .filter(
         (area) =>
@@ -57,7 +62,8 @@ export async function action({ request }) {
 
   try {
     const formData = await request.formData();
-    const intent = formData.get("intent") || "start";
+    const intent =
+      formData.get("intent") || "start";
 
     if (intent === "status") {
       const jobId = formData.get("jobId");
@@ -81,15 +87,18 @@ export async function action({ request }) {
       return {
         jobId,
         status: job.status,
-        completedVideoUrl: job.completedVideoUrl,
-        removalAreaCount: job.removalAreaCount,
+        completedVideoUrl:
+          job.completedVideoUrl,
+        removalAreaCount:
+          job.removalAreaCount,
         error: job.error,
       };
     }
 
     const videoFile = formData.get("video");
     const rightsConfirmed =
-      formData.get("rightsConfirmed") === "true";
+      formData.get("rightsConfirmed") ===
+      "true";
     const removalAreas = parseRemovalAreas(
       formData.get("removalAreas"),
     );
@@ -103,7 +112,8 @@ export async function action({ request }) {
 
     if (
       !videoFile ||
-      typeof videoFile.arrayBuffer !== "function"
+      typeof videoFile.arrayBuffer !==
+        "function"
     ) {
       return {
         error:
@@ -112,7 +122,9 @@ export async function action({ request }) {
     }
 
     if (
-      !ACCEPTED_VIDEO_TYPES.includes(videoFile.type)
+      !ACCEPTED_VIDEO_TYPES.includes(
+        videoFile.type,
+      )
     ) {
       return {
         error:
@@ -163,8 +175,10 @@ function normaliseRectangle(start, end) {
   return {
     x,
     y,
-    width: Math.max(start.x, end.x) - x,
-    height: Math.max(start.y, end.y) - y,
+    width:
+      Math.max(start.x, end.x) - x,
+    height:
+      Math.max(start.y, end.y) - y,
   };
 }
 
@@ -178,8 +192,10 @@ export default function VideoCleanup() {
     useState(null);
   const [previewUrl, setPreviewUrl] =
     useState("");
-  const [rightsConfirmed, setRightsConfirmed] =
-    useState(false);
+  const [
+    rightsConfirmed,
+    setRightsConfirmed,
+  ] = useState(false);
   const [removalAreas, setRemovalAreas] =
     useState([]);
   const [selectionMode, setSelectionMode] =
@@ -191,9 +207,12 @@ export default function VideoCleanup() {
   const [error, setError] = useState("");
   const [setupStarted, setSetupStarted] =
     useState(false);
-  const [inputKey, setInputKey] = useState(0);
-  const [videoDuration, setVideoDuration] =
+  const [inputKey, setInputKey] =
     useState(0);
+  const [
+    videoDuration,
+    setVideoDuration,
+  ] = useState(0);
 
   const jobId = fetcher.data?.jobId;
 
@@ -212,7 +231,8 @@ export default function VideoCleanup() {
         jobStatus !== "failed",
     );
 
-  const processingError = statusData?.error;
+  const processingError =
+    statusData?.error;
   const completedVideoUrl =
     statusData?.completedVideoUrl;
   const removalAreaCount =
@@ -229,7 +249,8 @@ export default function VideoCleanup() {
 
     setPreviewUrl(videoUrl);
 
-    return () => URL.revokeObjectURL(videoUrl);
+    return () =>
+      URL.revokeObjectURL(videoUrl);
   }, [selectedFile]);
 
   useEffect(() => {
@@ -242,29 +263,41 @@ export default function VideoCleanup() {
     }
 
     function checkJobStatus() {
-      const statusFormData = new FormData();
+      const statusFormData =
+        new FormData();
 
-      statusFormData.append("intent", "status");
-      statusFormData.append("jobId", jobId);
+      statusFormData.append(
+        "intent",
+        "status",
+      );
+      statusFormData.append(
+        "jobId",
+        jobId,
+      );
 
-      statusFetcher.submit(statusFormData, {
-        method: "post",
-      });
+      statusFetcher.submit(
+        statusFormData,
+        {
+          method: "post",
+        },
+      );
     }
 
     checkJobStatus();
 
-    const intervalId = window.setInterval(
-      checkJobStatus,
-      2000,
-    );
+    const intervalId =
+      window.setInterval(
+        checkJobStatus,
+        2000,
+      );
 
     return () =>
       window.clearInterval(intervalId);
   }, [jobId, jobStatus]);
 
   function handleFileChange(event) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     setError("");
     setSetupStarted(false);
@@ -278,7 +311,9 @@ export default function VideoCleanup() {
     }
 
     if (
-      !ACCEPTED_VIDEO_TYPES.includes(file.type)
+      !ACCEPTED_VIDEO_TYPES.includes(
+        file.type,
+      )
     ) {
       setSelectedFile(null);
       setError(
@@ -324,7 +359,8 @@ export default function VideoCleanup() {
     return {
       x: Math.min(
         Math.max(
-          ((event.clientX - bounds.left) /
+          ((event.clientX -
+            bounds.left) /
             bounds.width) *
             100,
           0,
@@ -333,7 +369,8 @@ export default function VideoCleanup() {
       ),
       y: Math.min(
         Math.max(
-          ((event.clientY - bounds.top) /
+          ((event.clientY -
+            bounds.top) /
             bounds.height) *
             100,
           0,
@@ -341,6 +378,18 @@ export default function VideoCleanup() {
         100,
       ),
     };
+  }
+
+  function moveVideoBackward() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.pause();
+    video.currentTime = Math.max(
+      video.currentTime - 2,
+      0,
+    );
+    setError("");
   }
 
   function beginAreaSelection() {
@@ -354,7 +403,8 @@ export default function VideoCleanup() {
   function handlePointerDown(event) {
     if (!selectionMode) return;
 
-    const point = getPointerPercentage(event);
+    const point =
+      getPointerPercentage(event);
 
     if (!point) return;
 
@@ -373,24 +423,36 @@ export default function VideoCleanup() {
   }
 
   function handlePointerMove(event) {
-    if (!selectionMode || !dragStart) return;
+    if (!selectionMode || !dragStart) {
+      return;
+    }
 
-    const point = getPointerPercentage(event);
+    const point =
+      getPointerPercentage(event);
 
     if (point) {
       setDraftArea(
-        normaliseRectangle(dragStart, point),
+        normaliseRectangle(
+          dragStart,
+          point,
+        ),
       );
     }
   }
 
   function finishAreaSelection(event) {
-    if (!selectionMode || !dragStart) return;
+    if (!selectionMode || !dragStart) {
+      return;
+    }
 
-    const point = getPointerPercentage(event);
+    const point =
+      getPointerPercentage(event);
 
     const completedArea = point
-      ? normaliseRectangle(dragStart, point)
+      ? normaliseRectangle(
+          dragStart,
+          point,
+        )
       : draftArea;
 
     if (
@@ -398,28 +460,36 @@ export default function VideoCleanup() {
       completedArea?.height >= 0.5
     ) {
       const startTime = Math.max(
-        Number(videoRef.current?.currentTime) ||
-          0,
+        Number(
+          videoRef.current?.currentTime,
+        ) || 0,
         0,
       );
 
       const endTime = Math.min(
         startTime + 5,
-        videoDuration || startTime + 5,
+        videoDuration ||
+          startTime + 5,
       );
 
-      setRemovalAreas((currentAreas) =>
-        [
-          ...currentAreas,
-          {
-            ...completedArea,
-            startTime,
-            endTime: Math.max(
-              endTime,
-              startTime + 0.1,
-            ),
-          },
-        ].slice(0, MAX_REMOVAL_AREAS),
+      setRemovalAreas(
+        (currentAreas) =>
+          [
+            ...currentAreas,
+            {
+              ...completedArea,
+              startTime,
+              endTime: Math.max(
+                endTime,
+                startTime + 0.1,
+              ),
+              cleanupMethod:
+                "diagnostic",
+            },
+          ].slice(
+            0,
+            MAX_REMOVAL_AREAS,
+          ),
       );
     } else {
       setError(
@@ -433,10 +503,12 @@ export default function VideoCleanup() {
   }
 
   function removeMarkedArea(areaIndex) {
-    setRemovalAreas((currentAreas) =>
-      currentAreas.filter(
-        (_, index) => index !== areaIndex,
-      ),
+    setRemovalAreas(
+      (currentAreas) =>
+        currentAreas.filter(
+          (_, index) =>
+            index !== areaIndex,
+        ),
     );
   }
 
@@ -451,20 +523,45 @@ export default function VideoCleanup() {
       return;
     }
 
-    setRemovalAreas((currentAreas) =>
-      currentAreas.map((area, index) => {
-        if (index !== areaIndex) {
-          return area;
-        }
+    setRemovalAreas(
+      (currentAreas) =>
+        currentAreas.map(
+          (area, index) => {
+            if (index !== areaIndex) {
+              return area;
+            }
 
-        return {
-          ...area,
-          [field]: Math.max(
-            numericValue,
-            0,
-          ),
-        };
-      }),
+            return {
+              ...area,
+              [field]: Math.max(
+                numericValue,
+                0,
+              ),
+            };
+          },
+        ),
+    );
+  }
+
+  function updateAreaMethod(
+    areaIndex,
+    cleanupMethod,
+  ) {
+    setRemovalAreas(
+      (currentAreas) =>
+        currentAreas.map(
+          (area, index) =>
+            index === areaIndex
+              ? {
+                  ...area,
+               cleanupMethod:
+                cleanupMethod === "local" ||
+                cleanupMethod === "background"
+                  ? cleanupMethod
+                  : "diagnostic",
+                }
+              : area,
+        ),
     );
   }
 
@@ -479,7 +576,10 @@ export default function VideoCleanup() {
 
     const formData = new FormData();
 
-    formData.append("video", selectedFile);
+    formData.append(
+      "video",
+      selectedFile,
+    );
     formData.append(
       "rightsConfirmed",
       "true",
@@ -501,7 +601,9 @@ export default function VideoCleanup() {
 
   return (
     <s-page heading="Video Text Removal">
-      <section className={styles.mediaCard}>
+      <section
+        className={styles.mediaCard}
+      >
         <s-button
           href="/app/media-tools"
           variant="primary"
@@ -510,13 +612,17 @@ export default function VideoCleanup() {
         </s-button>
       </section>
 
-      <section className={styles.mediaCard}>
-        <s-heading>Upload Video</s-heading>
+      <section
+        className={styles.mediaCard}
+      >
+        <s-heading>
+          Upload Video
+        </s-heading>
 
         <s-paragraph>
-          Upload an authorised product video and
-          mark the areas containing text or
-          overlays that should be removed.
+          Upload an authorised product video
+          and mark the areas containing text
+          or overlays that should be removed.
         </s-paragraph>
 
         <input
@@ -527,8 +633,8 @@ export default function VideoCleanup() {
         />
 
         <s-paragraph>
-          Accepted formats: MP4, WEBM and MOV.
-          Maximum file size: 200 MB.
+          Accepted formats: MP4, WEBM and
+          MOV. Maximum file size: 200 MB.
         </s-paragraph>
 
         {error && (
@@ -539,8 +645,12 @@ export default function VideoCleanup() {
       </section>
 
       {selectedFile && (
-        <section className={styles.mediaCard}>
-          <s-heading>Original Video</s-heading>
+        <section
+          className={styles.mediaCard}
+        >
+          <s-heading>
+            Original Video
+          </s-heading>
 
           <s-paragraph>
             File: {selectedFile.name}
@@ -562,7 +672,8 @@ export default function VideoCleanup() {
               width: "100%",
               maxWidth: "1280px",
               lineHeight: 0,
-              backgroundColor: "#000000",
+              backgroundColor:
+                "#000000",
               borderRadius: "8px",
               overflow: "hidden",
             }}
@@ -571,10 +682,13 @@ export default function VideoCleanup() {
               ref={videoRef}
               src={previewUrl}
               controls={!selectionMode}
-              onLoadedMetadata={(event) => {
+              onLoadedMetadata={(
+                event,
+              ) => {
                 setVideoDuration(
                   Number(
-                    event.currentTarget.duration,
+                    event.currentTarget
+                      .duration,
                   ) || 0,
                 );
               }}
@@ -584,8 +698,8 @@ export default function VideoCleanup() {
                 height: "auto",
               }}
             >
-              Your browser does not support video
-              playback.
+              Your browser does not support
+              video playback.
             </video>
 
             {visibleAreas.map(
@@ -593,17 +707,22 @@ export default function VideoCleanup() {
                 <div
                   key={`${index}-${area.x}-${area.y}`}
                   style={{
-                    position: "absolute",
+                    position:
+                      "absolute",
                     left: `${area.x}%`,
                     top: `${area.y}%`,
-                    width: `${area.width}%`,
-                    height: `${area.height}%`,
+                    width:
+                      `${area.width}%`,
+                    height:
+                      `${area.height}%`,
                     border:
                       "3px solid #ff2d2d",
                     backgroundColor:
                       "rgba(255, 45, 45, 0.18)",
-                    boxSizing: "border-box",
-                    pointerEvents: "none",
+                    boxSizing:
+                      "border-box",
+                    pointerEvents:
+                      "none",
                   }}
                 />
               ),
@@ -634,11 +753,17 @@ export default function VideoCleanup() {
           </div>
 
           <s-paragraph>
-            Pause on a clear frame, select Mark
-            Text Area, then drag a tight rectangle
-            around the writing. Add more areas
-            when required.
+            Pause on a clear frame, select
+            Mark Text Area, then drag a tight
+            rectangle around the writing. Add
+            more areas when required.
           </s-paragraph>
+          <s-button
+            disabled={selectionMode}
+            onClick={moveVideoBackward}
+          >
+            Back 2 Seconds
+          </s-button>
 
           <s-button
             variant="primary"
@@ -675,7 +800,38 @@ export default function VideoCleanup() {
               {removalAreas.map(
                 (area, index) => (
                   <p key={index}>
-                    Text area {index + 1}:{" "}
+                    Text area{" "}
+                    {index + 1}:{" "}
+                    <label>
+                      Method{" "}
+                      <select
+                        value={
+                          area.cleanupMethod
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          updateAreaMethod(
+                            index,
+                            event.target
+                              .value,
+                          )
+                        }
+                      >
+                        <option value="diagnostic">
+                          Diagnostic Outline
+                        </option>
+
+                        <option value="local">
+                          Local Cleanup —
+                          Small Text
+                        </option>
+                        <option value="background">
+                         Background Cover — Large Overlay
+                        </option>
+                      </select>
+                    </label>{" "}
+
                     <label>
                       Start (seconds){" "}
                       <input
@@ -686,16 +842,22 @@ export default function VideoCleanup() {
                           undefined
                         }
                         step="0.1"
-                        value={area.startTime}
-                        onChange={(event) =>
+                        value={
+                          area.startTime
+                        }
+                        onChange={(
+                          event,
+                        ) =>
                           updateAreaTime(
                             index,
                             "startTime",
-                            event.target.value,
+                            event.target
+                              .value,
                           )
                         }
                       />
                     </label>{" "}
+
                     <label>
                       End (seconds){" "}
                       <input
@@ -706,20 +868,28 @@ export default function VideoCleanup() {
                           undefined
                         }
                         step="0.1"
-                        value={area.endTime}
-                        onChange={(event) =>
+                        value={
+                          area.endTime
+                        }
+                        onChange={(
+                          event,
+                        ) =>
                           updateAreaTime(
                             index,
                             "endTime",
-                            event.target.value,
+                            event.target
+                              .value,
                           )
                         }
                       />
                     </label>{" "}
+
                     <button
                       type="button"
                       onClick={() =>
-                        removeMarkedArea(index)
+                        removeMarkedArea(
+                          index,
+                        )
                       }
                     >
                       Remove marking
@@ -730,14 +900,20 @@ export default function VideoCleanup() {
             </div>
           )}
 
-          <s-button onClick={clearVideo}>
+          <s-button
+            onClick={clearVideo}
+          >
             Remove Video
           </s-button>
         </section>
       )}
 
-      <section className={styles.mediaCard}>
-        <s-heading>Content Rights</s-heading>
+      <section
+        className={styles.mediaCard}
+      >
+        <s-heading>
+          Content Rights
+        </s-heading>
 
         <label>
           <input
@@ -749,15 +925,17 @@ export default function VideoCleanup() {
               )
             }
           />{" "}
-          I confirm that I own this media or have
-          permission to modify and remove its
-          text, watermarks or overlays for
-          promotional purposes in my store or
-          stores only.
+          I confirm that I own this media or
+          have permission to modify and
+          remove its text, watermarks or
+          overlays for promotional purposes
+          in my store or stores only.
         </label>
       </section>
 
-      <section className={styles.mediaCard}>
+      <section
+        className={styles.mediaCard}
+      >
         <s-heading>
           Fast Text Removal
         </s-heading>
@@ -769,18 +947,19 @@ export default function VideoCleanup() {
           </s-list-item>
 
           <s-list-item>
-            Retains the original video length and
-            audio
+            Retains the original video length
+            and audio
           </s-list-item>
 
           <s-list-item>
-            Processes locally without translation
-            or an external AI queue
+            Processes locally without
+            translation or an external AI
+            queue
           </s-list-item>
 
           <s-list-item>
-            Uses one video credit when credits are
-            connected
+            Uses one video credit when
+            credits are connected
           </s-list-item>
         </s-unordered-list>
 
@@ -799,58 +978,68 @@ export default function VideoCleanup() {
         </s-button>
       </section>
 
-      {setupStarted && selectedFile && (
-        <section className={styles.mediaCard}>
-          <s-heading>
-            Ready to Process
-          </s-heading>
-
-          <s-banner tone="success">
-            Video accepted with{" "}
-            {removalAreas.length} marked text area
-            {removalAreas.length === 1
-              ? ""
-              : "s"}
-            .
-          </s-banner>
-
-          <s-paragraph>
-            Each marked area will apply only
-            between its selected start and end
-            times.
-          </s-paragraph>
-
-          {processingError && (
-            <s-banner tone="critical">
-              {processingError}
-            </s-banner>
-          )}
-
-          <s-button
-            variant="primary"
-            disabled={
-              isProcessing ||
-              removalAreas.length === 0
+      {setupStarted &&
+        selectedFile && (
+          <section
+            className={
+              styles.mediaCard
             }
-            onClick={startVideoProcessing}
           >
-            {isProcessing
-              ? "Removing Video Text..."
-              : "Start Text Removal"}
-          </s-button>
-        </section>
-      )}
+            <s-heading>
+              Ready to Process
+            </s-heading>
+
+            <s-banner tone="success">
+              Video accepted with{" "}
+              {removalAreas.length} marked
+              text area
+              {removalAreas.length === 1
+                ? ""
+                : "s"}
+              .
+            </s-banner>
+
+            <s-paragraph>
+              Each marked area will apply
+              only between its selected
+              start and end times.
+            </s-paragraph>
+
+            {processingError && (
+              <s-banner tone="critical">
+                {processingError}
+              </s-banner>
+            )}
+
+            <s-button
+              variant="primary"
+              disabled={
+                isProcessing ||
+                removalAreas.length === 0
+              }
+              onClick={
+                startVideoProcessing
+              }
+            >
+              {isProcessing
+                ? "Removing Video Text..."
+                : "Start Text Removal"}
+            </s-button>
+          </section>
+        )}
 
       {completedVideoUrl && (
-        <section className={styles.mediaCard}>
+        <section
+          className={styles.mediaCard}
+        >
           <s-heading>
             Completed Video
           </s-heading>
 
           <s-banner tone="success">
             Video text removal completed
-            successfully. Review the result before
-            downloading.
+            successfully. Review the result
+            before downloading.
           </s-banner>
 
           <s-paragraph>
@@ -866,11 +1055,12 @@ export default function VideoCleanup() {
               width: "100%",
               maxHeight: "600px",
               borderRadius: "8px",
-              backgroundColor: "#000000",
+              backgroundColor:
+                "#000000",
             }}
           >
-            Your browser does not support video
-            playback.
+            Your browser does not support
+            video playback.
           </video>
 
           <p>
@@ -882,7 +1072,9 @@ export default function VideoCleanup() {
             </a>
           </p>
 
-          <s-button onClick={clearVideo}>
+          <s-button
+            onClick={clearVideo}
+          >
             Process Another Video
           </s-button>
         </section>
