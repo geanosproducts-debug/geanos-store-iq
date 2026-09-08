@@ -1194,6 +1194,254 @@ async function createInpaintingMaskVideo({
   ]);
 }
 
+async function createManualRepairMaskVideo({
+  videoPath,
+  removalAreas,
+  maskPath,
+  videoWidth,
+  videoHeight,
+}) {
+  const paintedMaskArea = removalAreas.find(
+    (area) =>
+      area.cleanupMethod === "brush" &&
+      typeof area.maskDataUrl === "string" &&
+      area.maskDataUrl.startsWith("data:image/png;base64,"),
+  );
+
+  if (paintedMaskArea) {
+    const paintedMaskPath = path.join(
+      path.dirname(maskPath),
+      "painted-repair-mask.png",
+    );
+    const encodedMask = paintedMaskArea.maskDataUrl.replace(
+      /^data:image\/png;base64,/,
+      "",
+    );
+
+    await fs.writeFile(
+      paintedMaskPath,
+      Buffer.from(encodedMask, "base64"),
+    );
+
+    const activeTimeRange =
+      `between(t,${paintedMaskArea.startTime.toFixed(3)},` +
+      `${paintedMaskArea.endTime.toFixed(3)})`;
+
+    await runCommand(getFfmpegCommand(), [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      videoPath,
+      "-loop",
+      "1",
+      "-framerate",
+      "30",
+      "-i",
+      paintedMaskPath,
+      "-filter_complex",
+      `[0:v]format=gray,drawbox=x=0:y=0:w=iw:h=ih:` +
+        `color=black:t=fill[black_base];` +
+        `[1:v]scale=${videoWidth}:${videoHeight},format=gray[painted_mask];` +
+        `[black_base][painted_mask]overlay=x=0:y=0:` +
+        `enable='${activeTimeRange}':shortest=1[mask_output]`,
+      "-map",
+      "[mask_output]",
+      "-an",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "0",
+      "-pix_fmt",
+      "yuv420p",
+      "-movflags",
+      "+faststart",
+      "-y",
+      maskPath,
+    ]);
+
+    return;
+  }
+
+  const maskFilters = [
+    "drawbox=x=0:y=0:w=iw:h=ih:" +
+      "color=black:t=fill",
+  ];
+
+  for (const area of removalAreas) {
+    if (
+      area.cleanupMethod === "brush" &&
+      Array.isArray(area.brushPoints) &&
+      area.brushPoints.length > 0
+    ) {
+      const brushDiameter = Math.max(
+        Math.round(
+          videoWidth *
+            ((area.brushSize || 4) / 100),
+        ),
+        4,
+      );
+      const brushRadius = Math.ceil(
+        brushDiameter / 2,
+      );
+
+      for (const point of area.brushPoints) {
+        const centreX = Math.round(
+          videoWidth * (point.x / 100),
+        );
+        const centreY = Math.round(
+          videoHeight * (point.y / 100),
+        );
+        const brushX = Math.max(
+          centreX - brushRadius,
+          0,
+        );
+        const brushY = Math.max(
+          centreY - brushRadius,
+          0,
+        );
+        const brushRight = Math.min(
+          centreX + brushRadius,
+          videoWidth,
+        );
+        const brushBottom = Math.min(
+          centreY + brushRadius,
+          videoHeight,
+        );
+        const brushWidth = Math.min(
+          Math.max(brushRight - brushX, 2),
+          videoWidth - brushX,
+        );
+        const brushHeight = Math.min(
+          Math.max(brushBottom - brushY, 2),
+          videoHeight - brushY,
+        );
+
+        maskFilters.push(
+          `drawbox=x=${brushX}:y=${brushY}` +
+            `:w=${brushWidth}:h=${brushHeight}` +
+            ":color=white:t=fill" +
+            `:enable='between(t,${area.startTime.toFixed(
+              3,
+            )},${area.endTime.toFixed(3)})'`,
+        );
+      }
+
+      continue;
+    }
+
+    const paddingX = Math.max(
+      area.width * 0.03,
+      0.6,
+    );
+
+    const paddingY = Math.max(
+      area.height * 0.1,
+      0.8,
+    );
+
+    const xPercentage = Math.max(
+      area.x - paddingX,
+      0,
+    );
+
+    const yPercentage = Math.max(
+      area.y - paddingY,
+      0,
+    );
+
+    const widthPercentage = Math.min(
+      area.width + paddingX * 2,
+      100 - xPercentage,
+    );
+
+    const heightPercentage = Math.min(
+      area.height + paddingY * 2,
+      100 - yPercentage,
+    );
+
+    const x = Math.max(
+      Math.floor(
+        videoWidth *
+          (xPercentage / 100),
+      ),
+      0,
+    );
+
+    const y = Math.max(
+      Math.floor(
+        videoHeight *
+          (yPercentage / 100),
+      ),
+      0,
+    );
+
+    const width = Math.max(
+      Math.min(
+        Math.ceil(
+          videoWidth *
+            (widthPercentage / 100),
+        ),
+        videoWidth - x,
+      ),
+      2,
+    );
+
+    const height = Math.max(
+      Math.min(
+        Math.ceil(
+          videoHeight *
+            (heightPercentage / 100),
+        ),
+        videoHeight - y,
+      ),
+      2,
+    );
+
+    maskFilters.push(
+      `drawbox=x=${x}:y=${y}` +
+        `:w=${width}:h=${height}` +
+        ":color=white:t=fill" +
+        `:enable='between(t,${area.startTime.toFixed(
+          3,
+        )},${area.endTime.toFixed(
+          3,
+        )})'`,
+    );
+  }
+
+  maskFilters.push("gblur=sigma=2");
+
+  await runCommand(getFfmpegCommand(), [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    videoPath,
+    "-map",
+    "0:v:0",
+    "-vf",
+    maskFilters.join(","),
+    "-an",
+    "-fps_mode",
+    "passthrough",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "0",
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+    "-y",
+    maskPath,
+  ]);
+}
+
 async function runFastVideoCleanup({
   inputPath,
   analysisResults,
@@ -1447,6 +1695,10 @@ async function runProPainter({
           mask: maskVideoUrl,
           fp16: true,
           mask_dilation: 8,
+          neighbor_length: 5,
+          ref_stride: 15,
+          subvideo_length: 40,
+          resize_ratio: 0.75,
           return_input_video: false,
         },
       },
@@ -2210,31 +2462,63 @@ export async function removeVideoText({
     .map((area) => ({
       x: clampPercentage(area?.x),
       y: clampPercentage(area?.y),
-      width: clampPercentage(
-        area?.width,
-      ),
-      height: clampPercentage(
-        area?.height,
-      ),
+      width: clampPercentage(area?.width),
+      height: clampPercentage(area?.height),
       startTime: Math.max(
         Number(area?.startTime) || 0,
         0,
       ),
-      endTime:
+      endTime: Math.min(
         Number(area?.endTime) || 0,
-           cleanupMethod:
+        Number.POSITIVE_INFINITY,
+      ),
+      maskDataUrl:
+        typeof area?.maskDataUrl === "string" &&
+        area.maskDataUrl.startsWith("data:image/png;base64,") &&
+        area.maskDataUrl.length <= 8_000_000
+          ? area.maskDataUrl
+          : "",
+      brushSize: Math.min(
+        Math.max(Number(area?.brushSize) || 4, 0.5),
+        20,
+      ),
+      brushPoints: Array.isArray(area?.brushPoints)
+        ? area.brushPoints
+            .map((point) => ({
+              x: clampPercentage(point?.x),
+              y: clampPercentage(point?.y),
+            }))
+            .filter(
+              (point) =>
+                Number.isFinite(point.x) &&
+                Number.isFinite(point.y),
+            )
+            .slice(0, 200)
+        : [],
+      cleanupMethod:
         area?.cleanupMethod === "local" ||
-        area?.cleanupMethod === "background"
+        area?.cleanupMethod === "background" ||
+        area?.cleanupMethod === "brush"
           ? area.cleanupMethod
           : "diagnostic",
+      cleanupPasses:
+        Number(area?.cleanupPasses) === 2
+          ? 2
+          : 1,
+      processingStage:
+        area?.processingStage === "repair"
+          ? "repair"
+          : "remove",
+      repairMethod:
+        area?.repairMethod === "void"
+          ? "void"
+          : "propainter",
     }))
     .filter(
       (area) =>
         area.width >= 0.5 &&
         area.height >= 0.5 &&
-        Number.isFinite(
-          area.startTime,
-        ) &&
+        Number.isFinite(area.startTime) &&
         Number.isFinite(area.endTime) &&
         area.endTime > area.startTime &&
         area.x + area.width <= 100 &&
@@ -2244,22 +2528,20 @@ export async function removeVideoText({
 
   if (validRemovalAreas.length === 0) {
     throw new Error(
-      "Mark at least one text area with a valid start and end time before processing the video.",
+      "Mark at least one text area before processing the video.",
     );
   }
 
-  const temporaryDirectory =
-    await fs.mkdtemp(
-      path.join(
-        os.tmpdir(),
-        "geanos-text-removal-",
-      ),
-    );
+  const temporaryDirectory = await fs.mkdtemp(
+    path.join(
+      os.tmpdir(),
+      "geanos-text-removal-",
+    ),
+  );
 
   const inputExtension =
-    path.extname(
-      videoFile.name || "",
-    ) || ".mp4";
+    path.extname(videoFile.name || "") ||
+    ".mp4";
 
   const inputPath = path.join(
     temporaryDirectory,
@@ -2271,6 +2553,41 @@ export async function removeVideoText({
     "GEANOS-text-removed-video.mp4",
   );
 
+  const firstPassPath = path.join(
+    temporaryDirectory,
+    "first-pass-video.mp4",
+  );
+
+  const repairMaskPath = path.join(
+    temporaryDirectory,
+    "second-stage-repair-mask.mp4",
+  );
+
+  const proPainterRepairedPath = path.join(
+    temporaryDirectory,
+    "propainter-repaired-video.mp4",
+  );
+
+  const voidMaskPath = path.join(
+    temporaryDirectory,
+    "void-selected-mask.mp4",
+  );
+
+  const voidRepairedPath = path.join(
+    temporaryDirectory,
+    "void-repaired-video.mp4",
+  );
+
+  const voidSegmentDirectory = path.join(
+    temporaryDirectory,
+    "void-selected-segments",
+  );
+
+  const voidConcatListPath = path.join(
+    temporaryDirectory,
+    "void-selected-segments.txt",
+  );
+
   try {
     await fs.writeFile(
       inputPath,
@@ -2278,22 +2595,69 @@ export async function removeVideoText({
         await videoFile.arrayBuffer(),
       ),
     );
-
     logRemovalStage("Input saved");
 
     const {
       width: videoWidth,
       height: videoHeight,
-    } = await getVideoInformation(
-      inputPath,
-    );
-
+      duration,
+      frameRate,
+      frameCount,
+    } = await getVideoInformation(inputPath);
     logRemovalStage("Video inspected");
+
+    const processingAreas =
+      validRemovalAreas.flatMap((area) => {
+        if (
+          area.cleanupPasses !== 2 ||
+          area.cleanupMethod === "diagnostic"
+        ) {
+          return [
+            {
+              ...area,
+              passNumber: 1,
+            },
+          ];
+        }
+
+        const horizontalInset = Math.min(
+          area.width * 0.015,
+          0.25,
+        );
+
+        const verticalInset = Math.min(
+          area.height * 0.04,
+          0.25,
+        );
+
+        return [
+          {
+            ...area,
+            passNumber: 1,
+          },
+          {
+            ...area,
+            x: area.x + horizontalInset,
+            y: area.y + verticalInset,
+            width: Math.max(
+              0.5,
+              area.width -
+                horizontalInset * 2,
+            ),
+            height: Math.max(
+              0.5,
+              area.height -
+                verticalInset * 2,
+            ),
+            passNumber: 2,
+          },
+        ];
+      });
 
     const filterParts = [];
     let currentVideoLabel = "0:v:0";
 
-    validRemovalAreas.forEach(
+    processingAreas.forEach(
       (area, index) => {
         const x = Math.max(
           Math.floor(
@@ -2361,23 +2725,30 @@ export async function removeVideoText({
             },
             cleanupMethod:
               area.cleanupMethod,
+            cleanupPasses:
+              area.cleanupPasses,
+            passNumber: area.passNumber,
           },
         );
 
-              if (
+        if (
           area.cleanupMethod ===
           "background"
         ) {
           const horizontalPadding =
             Math.max(
               4,
-              Math.round(videoWidth * 0.005),
+              Math.round(
+                videoWidth * 0.005,
+              ),
             );
 
           const verticalPadding =
             Math.max(
               4,
-              Math.round(videoHeight * 0.008),
+              Math.round(
+                videoHeight * 0.008,
+              ),
             );
 
           const safeX = Math.max(
@@ -2446,6 +2817,19 @@ export async function removeVideoText({
                     sampleHeight,
                 );
 
+          const featherSize = Math.max(
+            4,
+            Math.min(
+              12,
+              Math.floor(
+                Math.min(
+                  safeWidth,
+                  safeHeight,
+                ) / 8,
+              ),
+            ),
+          );
+
           const splitBaseLabel =
             `background_base_${index}`;
           const splitSourceLabel =
@@ -2454,8 +2838,16 @@ export async function removeVideoText({
             `background_patch_${index}`;
           const scaledPatchLabel =
             `background_scaled_${index}`;
-          const softenedPatchLabel =
-            `background_softened_${index}`;
+          const patchContentLabel =
+            `background_content_${index}`;
+          const maskSourceLabel =
+            `background_mask_source_${index}`;
+          const rgbaPatchLabel =
+            `background_rgba_${index}`;
+          const maskLabel =
+            `background_mask_${index}`;
+          const featheredPatchLabel =
+            `background_feathered_${index}`;
 
           filterParts.push(
             `[${currentVideoLabel}]split=2` +
@@ -2471,22 +2863,69 @@ export async function removeVideoText({
               `[${patchLabel}]`,
           );
 
-          filterParts.push(
+                   filterParts.push(
             `[${patchLabel}]` +
               `scale=w=${safeWidth}` +
               `:h=${safeHeight}` +
               `[${scaledPatchLabel}]`,
           );
+          
+          filterParts.push(
+            `[${scaledPatchLabel}]split=2` +
+              `[${patchContentLabel}]` +
+              `[${maskSourceLabel}]`,
+          );
 
           filterParts.push(
-            `[${scaledPatchLabel}]` +
-              "gblur=sigma=2" +
-              `[${softenedPatchLabel}]`,
+            `[${patchContentLabel}]` +
+              `gblur=sigma=${
+                area.passNumber === 2
+                  ? 3
+                  : 2
+              },` +
+              "format=rgba" +
+              `[${rgbaPatchLabel}]`,
+          );
+
+                    const maskEdgeFilters = [
+            safeY > 0
+              ? `drawbox=x=0:y=0:w=iw:h=${featherSize}:color=black:t=fill`
+              : null,
+            safeBottom < videoHeight
+              ? `drawbox=x=0:y=ih-${featherSize}:w=iw:h=${featherSize}:color=black:t=fill`
+              : null,
+            safeX > 0
+              ? `drawbox=x=0:y=0:w=${featherSize}:h=ih:color=black:t=fill`
+              : null,
+            safeRight < videoWidth
+              ? `drawbox=x=iw-${featherSize}:y=0:w=${featherSize}:h=ih:color=black:t=fill`
+              : null,
+          ].filter(Boolean);
+
+          const maskEdgeChain =
+            maskEdgeFilters.length > 0
+              ? `,${maskEdgeFilters.join(",")}`
+              : "";
+
+          filterParts.push(
+            `[${maskSourceLabel}]` +
+              "format=gray," +
+              "geq=lum=255" +
+              maskEdgeChain +
+              ",gblur=sigma=4" +
+              `[${maskLabel}]`,
+          );
+
+          filterParts.push(
+            `[${rgbaPatchLabel}]` +
+              `[${maskLabel}]` +
+              "alphamerge" +
+              `[${featheredPatchLabel}]`,
           );
 
           filterParts.push(
             `[${splitBaseLabel}]` +
-              `[${softenedPatchLabel}]` +
+              `[${featheredPatchLabel}]` +
               `overlay=x=${safeX}` +
               `:y=${safeY}` +
               `:${timeRange}` +
@@ -2498,11 +2937,20 @@ export async function removeVideoText({
           return;
         }
 
+        if (area.cleanupMethod === "brush") {
+          filterParts.push(
+            `[${currentVideoLabel}]null[${outputLabel}]`,
+          );
+          currentVideoLabel = outputLabel;
+          return;
+        }
+
         if (
           area.cleanupMethod === "local"
         ) {
           const safeX = Math.max(1, x);
           const safeY = Math.max(1, y);
+
           const safeWidth = Math.max(
             2,
             Math.min(
@@ -2510,6 +2958,7 @@ export async function removeVideoText({
               videoWidth - safeX - 1,
             ),
           );
+
           const safeHeight = Math.max(
             2,
             Math.min(
@@ -2572,35 +3021,135 @@ export async function removeVideoText({
       "-movflags",
       "+faststart",
       "-y",
-      outputPath,
+      firstPassPath,
     ]);
     logRemovalStage(
       "FFmpeg cleanup completed",
-    );   
+    );
+
+    const selectedEngine =
+      validRemovalAreas[0]?.repairMethod === "void"
+        ? "void"
+        : "propainter";
+
+    const selectedAreas = validRemovalAreas;
+
+    if (selectedAreas.length > 0) {
+      await createManualRepairMaskVideo({
+        videoPath: firstPassPath,
+        removalAreas: selectedAreas,
+        maskPath: repairMaskPath,
+        videoWidth,
+        videoHeight,
+      });
+
+      logRemovalStage(
+        `${selectedEngine} mask created`,
+      );
+
+      let repairedVideoPath = proPainterRepairedPath;
+
+      if (selectedEngine === "void") {
+        await fs.mkdir(voidSegmentDirectory, {
+          recursive: true,
+        });
+
+        await runCommand(getFfmpegCommand(), [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-i",
+          repairMaskPath,
+          "-vf",
+          "negate",
+          "-an",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "0",
+          "-pix_fmt",
+          "yuv420p",
+          "-y",
+          voidMaskPath,
+        ]);
+
+        await runVoidCleanup({
+          videoPath: firstPassPath,
+          maskPath: voidMaskPath,
+          segmentDirectory: voidSegmentDirectory,
+          concatListPath: voidConcatListPath,
+          outputPath: voidRepairedPath,
+          frameCount,
+          frameRate,
+          duration,
+        });
+        repairedVideoPath = voidRepairedPath;
+      } else {
+        await runProPainter({
+          inputPath: firstPassPath,
+          maskPath: repairMaskPath,
+          cleanedVideoPath: proPainterRepairedPath,
+        });
+      }
+
+      logRemovalStage(
+        `${selectedEngine} selected processing completed`,
+      );
+
+      await runCommand(getFfmpegCommand(), [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        repairedVideoPath,
+        "-i",
+        inputPath,
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a?",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        "-y",
+        outputPath,
+      ]);
+
+      logRemovalStage(
+        "Original audio restored",
+      );
+    } else {
+      await fs.rename(
+        firstPassPath,
+        outputPath,
+      );
+    }
 
     const completedVideo =
       await fs.readFile(outputPath);
-
     logRemovalStage(
       "Completed video read",
     );
 
     return {
       videoBase64:
-        completedVideo.toString(
-          "base64",
-        ),
+        completedVideo.toString("base64"),
       mimeType: "video/mp4",
       removalAreaCount:
         validRemovalAreas.length,
     };
   } finally {
-    await fs.rm(
-      temporaryDirectory,
-      {
-        recursive: true,
-        force: true,
-      },
-    );
+    await fs.rm(temporaryDirectory, {
+      recursive: true,
+      force: true,
+    });
   }
 }

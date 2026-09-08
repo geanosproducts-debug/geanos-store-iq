@@ -8,7 +8,7 @@ import {
 import styles from "../styles/media-tools.module.css";
 
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
-const MAX_REMOVAL_AREAS = 20;
+const DEFAULT_BRUSH_SIZE = 4;
 const ACCEPTED_VIDEO_TYPES = [
   "video/mp4",
   "video/webm",
@@ -28,11 +28,22 @@ function parseRemovalAreas(value) {
         height: Number(area?.height),
         startTime: Number(area?.startTime),
         endTime: Number(area?.endTime),
-             cleanupMethod:
-        area?.cleanupMethod === "local" ||
-        area?.cleanupMethod === "background"
-          ? area.cleanupMethod
-          : "diagnostic",
+        maskDataUrl:
+          typeof area?.maskDataUrl === "string" &&
+          area.maskDataUrl.startsWith("data:image/png;base64,") &&
+          area.maskDataUrl.length <= 8_000_000
+            ? area.maskDataUrl
+            : "",
+        cleanupMethod: "brush",
+        cleanupPasses: 1,
+        processingStage:
+          area?.processingStage === "repair"
+            ? "repair"
+            : "remove",
+        repairMethod:
+          area?.repairMethod === "void"
+            ? "void"
+            : "propainter",
       }))
       .filter(
         (area) =>
@@ -51,7 +62,8 @@ function parseRemovalAreas(value) {
           area.x + area.width <= 100 &&
           area.y + area.height <= 100,
       )
-      .slice(0, MAX_REMOVAL_AREAS);
+      .filter((area) => area.maskDataUrl)
+      .slice(0, 1);
   } catch {
     return [];
   }
@@ -142,7 +154,7 @@ export async function action({ request }) {
     if (removalAreas.length === 0) {
       return {
         error:
-          "Mark at least one text area before processing.",
+          "Paint over the writing before processing.",
       };
     }
 
@@ -168,25 +180,14 @@ export async function action({ request }) {
   }
 }
 
-function normaliseRectangle(start, end) {
-  const x = Math.min(start.x, end.x);
-  const y = Math.min(start.y, end.y);
-
-  return {
-    x,
-    y,
-    width:
-      Math.max(start.x, end.x) - x,
-    height:
-      Math.max(start.y, end.y) - y,
-  };
-}
-
 export default function VideoCleanup() {
   const fetcher = useFetcher();
   const statusFetcher = useFetcher();
   const previewContainerRef = useRef(null);
   const videoRef = useRef(null);
+  const paintCanvasRef = useRef(null);
+  const maskCanvasRef = useRef(null);
+  const currentStrokeRef = useRef(null);
 
   const [selectedFile, setSelectedFile] =
     useState(null);
@@ -200,10 +201,22 @@ export default function VideoCleanup() {
     useState([]);
   const [selectionMode, setSelectionMode] =
     useState(false);
-  const [dragStart, setDragStart] =
+  const [brushSize, setBrushSize] =
+    useState(DEFAULT_BRUSH_SIZE);
+  const [brushTool, setBrushTool] =
+    useState("paint");
+  const [processingStage, setProcessingStage] =
+    useState("remove");
+  const [processingEngine, setProcessingEngine] =
+    useState("propainter");
+  const [paintStrokes, setPaintStrokes] =
+    useState([]);
+  const [brushCursor, setBrushCursor] =
     useState(null);
-  const [draftArea, setDraftArea] =
-    useState(null);
+  const [currentVideoTime, setCurrentVideoTime] =
+    useState(0);
+  const [videoIsPlaying, setVideoIsPlaying] =
+    useState(false);
   const [error, setError] = useState("");
   const [setupStarted, setSetupStarted] =
     useState(false);
@@ -303,7 +316,11 @@ export default function VideoCleanup() {
     setSetupStarted(false);
     setRemovalAreas([]);
     setSelectionMode(false);
+    setPaintStrokes([]);
+    currentStrokeRef.current = null;
     setVideoDuration(0);
+    setCurrentVideoTime(0);
+    setVideoIsPlaying(false);
 
     if (!file) {
       setSelectedFile(null);
@@ -338,46 +355,131 @@ export default function VideoCleanup() {
     setRightsConfirmed(false);
     setRemovalAreas([]);
     setSelectionMode(false);
-    setDraftArea(null);
-    setDragStart(null);
+    setPaintStrokes([]);
+    currentStrokeRef.current = null;
     setError("");
     setSetupStarted(false);
     setInputKey(
       (currentKey) => currentKey + 1,
     );
     setVideoDuration(0);
+    setCurrentVideoTime(0);
+    setVideoIsPlaying(false);
   }
 
-  function getPointerPercentage(event) {
-    const video = videoRef.current;
-
-    if (!video) return null;
-
-    const bounds =
-      video.getBoundingClientRect();
+  function getCanvasPoint(event) {
+    const canvas = paintCanvasRef.current;
+    if (!canvas) return null;
+    const bounds = canvas.getBoundingClientRect();
 
     return {
       x: Math.min(
         Math.max(
-          ((event.clientX -
-            bounds.left) /
-            bounds.width) *
-            100,
+          ((event.clientX - bounds.left) / bounds.width) * canvas.width,
           0,
         ),
-        100,
+        canvas.width,
       ),
       y: Math.min(
         Math.max(
-          ((event.clientY -
-            bounds.top) /
-            bounds.height) *
-            100,
+          ((event.clientY - bounds.top) / bounds.height) * canvas.height,
           0,
         ),
-        100,
+        canvas.height,
       ),
     };
+  }
+
+  function drawStrokeSegment(canvas, stroke, from, to) {
+    const context = canvas?.getContext("2d");
+    if (!context) return;
+
+    context.save();
+    context.globalCompositeOperation =
+      stroke.tool === "erase" ? "destination-out" : "source-over";
+    context.strokeStyle =
+      canvas === paintCanvasRef.current
+        ? "rgba(255, 35, 35, 0.68)"
+        : "white";
+    context.fillStyle = context.strokeStyle;
+    context.lineWidth = stroke.size;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.stroke();
+    context.beginPath();
+    context.arc(to.x, to.y, stroke.size / 2, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+
+  function redrawPaint(strokes) {
+    const paintCanvas = paintCanvasRef.current;
+    const maskCanvas = maskCanvasRef.current;
+    if (!paintCanvas || !maskCanvas) return;
+
+    paintCanvas.getContext("2d")?.clearRect(
+      0, 0, paintCanvas.width, paintCanvas.height,
+    );
+    maskCanvas.getContext("2d")?.clearRect(
+      0, 0, maskCanvas.width, maskCanvas.height,
+    );
+
+    for (const stroke of strokes) {
+      stroke.points.forEach((point, index) => {
+        const previousPoint = stroke.points[Math.max(index - 1, 0)];
+        drawStrokeSegment(paintCanvas, stroke, previousPoint, point);
+        drawStrokeSegment(maskCanvas, stroke, previousPoint, point);
+      });
+    }
+  }
+
+  function createMaskDataUrl() {
+    const maskCanvas = maskCanvasRef.current;
+    if (!maskCanvas) return "";
+
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = maskCanvas.width;
+    exportCanvas.height = maskCanvas.height;
+    const context = exportCanvas.getContext("2d");
+    context.fillStyle = "black";
+    context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    context.drawImage(maskCanvas, 0, 0);
+    return exportCanvas.toDataURL("image/png");
+  }
+
+  function saveCombinedMask(strokes) {
+    if (strokes.length === 0) {
+      setRemovalAreas([]);
+      return;
+    }
+
+    const currentTime = Math.max(videoRef.current?.currentTime || 0, 0);
+
+    setRemovalAreas((currentAreas) => {
+      const existingArea = currentAreas[0];
+      const startTime = existingArea?.startTime ?? currentTime;
+      const endTime = existingArea?.endTime ?? Math.min(
+        currentTime + 5,
+        videoDuration || currentTime + 5,
+      );
+
+      return [{
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        startTime,
+        endTime: Math.max(endTime, startTime + 0.1),
+        maskDataUrl: createMaskDataUrl(),
+        cleanupMethod: "brush",
+        cleanupPasses: 1,
+        processingStage,
+        repairMethod: processingEngine,
+      }];
+    });
   }
 
   function moveVideoBackward() {
@@ -386,25 +488,45 @@ export default function VideoCleanup() {
 
     video.pause();
     video.currentTime = Math.max(
-      video.currentTime - 2,
+      video.currentTime - 1,
       0,
     );
+    setCurrentVideoTime(video.currentTime);
     setError("");
+  }
+
+  function toggleVideoPlayback() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  }
+
+  function seekVideo(value) {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.pause();
+    video.currentTime = Number(value) || 0;
+    setCurrentVideoTime(video.currentTime);
   }
 
   function beginAreaSelection() {
     videoRef.current?.pause();
     setSelectionMode(true);
-    setDraftArea(null);
-    setDragStart(null);
     setError("");
   }
 
   function handlePointerDown(event) {
     if (!selectionMode) return;
 
-    const point =
-      getPointerPercentage(event);
+    if (!videoRef.current?.paused) return;
+
+    const point = getCanvasPoint(event);
 
     if (!point) return;
 
@@ -412,108 +534,49 @@ export default function VideoCleanup() {
       event.pointerId,
     );
 
-    setDragStart(point);
-
-    setDraftArea({
-      x: point.x,
-      y: point.y,
-      width: 0,
-      height: 0,
-    });
+    const canvas = paintCanvasRef.current;
+    const stroke = {
+      tool: brushTool,
+      size: Math.max((brushSize / 100) * canvas.width, 2),
+      points: [point],
+    };
+    currentStrokeRef.current = stroke;
+    drawStrokeSegment(canvas, stroke, point, point);
+    drawStrokeSegment(maskCanvasRef.current, stroke, point, point);
   }
 
   function handlePointerMove(event) {
-    if (!selectionMode || !dragStart) {
-      return;
+    if (!selectionMode) return;
+
+    const point = getCanvasPoint(event);
+    const canvas = paintCanvasRef.current;
+    if (point && canvas) {
+      setBrushCursor({
+        x: (point.x / canvas.width) * 100,
+        y: (point.y / canvas.height) * 100,
+      });
     }
 
-    const point =
-      getPointerPercentage(event);
+    const stroke = currentStrokeRef.current;
+    if (!point || !stroke) return;
 
-    if (point) {
-      setDraftArea(
-        normaliseRectangle(
-          dragStart,
-          point,
-        ),
-      );
-    }
+    const previousPoint = stroke.points[stroke.points.length - 1];
+    stroke.points.push(point);
+    drawStrokeSegment(canvas, stroke, previousPoint, point);
+    drawStrokeSegment(maskCanvasRef.current, stroke, previousPoint, point);
   }
 
   function finishAreaSelection(event) {
-    if (!selectionMode || !dragStart) {
-      return;
-    }
+    const stroke = currentStrokeRef.current;
+    if (!selectionMode || !stroke) return;
 
-    const point =
-      getPointerPercentage(event);
-
-    const completedArea = point
-      ? normaliseRectangle(
-          dragStart,
-          point,
-        )
-      : draftArea;
-
-    if (
-      completedArea?.width >= 0.5 &&
-      completedArea?.height >= 0.5
-    ) {
-      const startTime = Math.max(
-        Number(
-          videoRef.current?.currentTime,
-        ) || 0,
-        0,
-      );
-
-      const endTime = Math.min(
-        startTime + 5,
-        videoDuration ||
-          startTime + 5,
-      );
-
-      setRemovalAreas(
-        (currentAreas) =>
-          [
-            ...currentAreas,
-            {
-              ...completedArea,
-              startTime,
-              endTime: Math.max(
-                endTime,
-                startTime + 0.1,
-              ),
-              cleanupMethod:
-                "diagnostic",
-            },
-          ].slice(
-            0,
-            MAX_REMOVAL_AREAS,
-          ),
-      );
-    } else {
-      setError(
-        "Drag a larger rectangle around the text.",
-      );
-    }
-
-    setSelectionMode(false);
-    setDragStart(null);
-    setDraftArea(null);
-  }
-
-  function removeMarkedArea(areaIndex) {
-    setRemovalAreas(
-      (currentAreas) =>
-        currentAreas.filter(
-          (_, index) =>
-            index !== areaIndex,
-        ),
-    );
+    currentStrokeRef.current = null;
+    const nextStrokes = [...paintStrokes, stroke];
+    setPaintStrokes(nextStrokes);
+    saveCombinedMask(nextStrokes);
   }
 
   function updateAreaTime(
-    areaIndex,
     field,
     value,
   ) {
@@ -525,44 +588,49 @@ export default function VideoCleanup() {
 
     setRemovalAreas(
       (currentAreas) =>
-        currentAreas.map(
-          (area, index) => {
-            if (index !== areaIndex) {
-              return area;
-            }
-
-            return {
-              ...area,
-              [field]: Math.max(
-                numericValue,
-                0,
-              ),
-            };
-          },
-        ),
+        currentAreas.map((area) => ({
+          ...area,
+          [field]: Math.max(numericValue, 0),
+        })),
     );
   }
 
-  function updateAreaMethod(
-    areaIndex,
-    cleanupMethod,
-  ) {
-    setRemovalAreas(
-      (currentAreas) =>
-        currentAreas.map(
-          (area, index) =>
-            index === areaIndex
-              ? {
-                  ...area,
-               cleanupMethod:
-                cleanupMethod === "local" ||
-                cleanupMethod === "background"
-                  ? cleanupMethod
-                  : "diagnostic",
-                }
-              : area,
-        ),
+  function updateProcessingStage(value) {
+    const nextStage =
+      value === "repair" ? "repair" : "remove";
+    setProcessingStage(nextStage);
+    setRemovalAreas((currentAreas) =>
+      currentAreas.map((area) => ({
+        ...area,
+        processingStage: nextStage,
+      })),
     );
+  }
+
+  function updateProcessingEngine(value) {
+    const nextEngine =
+      value === "void" ? "void" : "propainter";
+    setProcessingEngine(nextEngine);
+    setRemovalAreas((currentAreas) =>
+      currentAreas.map((area) => ({
+        ...area,
+        repairMethod: nextEngine,
+      })),
+    );
+  }
+
+  function undoLastStroke() {
+    const nextStrokes = paintStrokes.slice(0, -1);
+    setPaintStrokes(nextStrokes);
+    redrawPaint(nextStrokes);
+    saveCombinedMask(nextStrokes);
+  }
+
+  function clearAllPaint() {
+    setPaintStrokes([]);
+    redrawPaint([]);
+    setRemovalAreas([]);
+    setBrushTool("paint");
   }
 
   function startVideoProcessing() {
@@ -594,10 +662,6 @@ export default function VideoCleanup() {
       encType: "multipart/form-data",
     });
   }
-
-  const visibleAreas = draftArea
-    ? [...removalAreas, draftArea]
-    : removalAreas;
 
   return (
     <s-page heading="Video Text Removal">
@@ -681,7 +745,7 @@ export default function VideoCleanup() {
             <video
               ref={videoRef}
               src={previewUrl}
-              controls={!selectionMode}
+              controls={false}
               onLoadedMetadata={(
                 event,
               ) => {
@@ -691,7 +755,28 @@ export default function VideoCleanup() {
                       .duration,
                   ) || 0,
                 );
+                setCurrentVideoTime(0);
+                const width = event.currentTarget.videoWidth;
+                const height = event.currentTarget.videoHeight;
+                for (const canvas of [
+                  paintCanvasRef.current,
+                  maskCanvasRef.current,
+                ]) {
+                  if (canvas) {
+                    canvas.width = width;
+                    canvas.height = height;
+                  }
+                }
+                redrawPaint([]);
               }}
+              onTimeUpdate={(event) =>
+                setCurrentVideoTime(
+                  event.currentTarget.currentTime,
+                )
+              }
+              onPlay={() => setVideoIsPlaying(true)}
+              onPause={() => setVideoIsPlaying(false)}
+              onEnded={() => setVideoIsPlaying(false)}
               style={{
                 display: "block",
                 width: "100%",
@@ -702,30 +787,39 @@ export default function VideoCleanup() {
               video playback.
             </video>
 
-            {visibleAreas.map(
-              (area, index) => (
-                <div
-                  key={`${index}-${area.x}-${area.y}`}
-                  style={{
-                    position:
-                      "absolute",
-                    left: `${area.x}%`,
-                    top: `${area.y}%`,
-                    width:
-                      `${area.width}%`,
-                    height:
-                      `${area.height}%`,
-                    border:
-                      "3px solid #ff2d2d",
-                    backgroundColor:
-                      "rgba(255, 45, 45, 0.18)",
-                    boxSizing:
-                      "border-box",
-                    pointerEvents:
-                      "none",
-                  }}
-                />
-              ),
+            <canvas
+              ref={paintCanvasRef}
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+              }}
+            />
+            <canvas
+              ref={maskCanvasRef}
+              aria-hidden="true"
+              style={{ display: "none" }}
+            />
+
+            {selectionMode && brushCursor && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${brushCursor.x}%`,
+                  top: `${brushCursor.y}%`,
+                  width: `${brushSize}%`,
+                  aspectRatio: "1 / 1",
+                  border: "2px solid #ff2323",
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(255, 35, 35, 0.2)",
+                  transform: "translate(-50%, -50%)",
+                  pointerEvents: "none",
+                  zIndex: 2,
+                }}
+              />
             )}
 
             {selectionMode && (
@@ -740,10 +834,13 @@ export default function VideoCleanup() {
                 onPointerUp={
                   finishAreaSelection
                 }
+                onPointerLeave={() =>
+                  setBrushCursor(null)
+                }
                 style={{
                   position: "absolute",
                   inset: 0,
-                  cursor: "crosshair",
+                  cursor: "cell",
                   touchAction: "none",
                   backgroundColor:
                     "rgba(0, 0, 0, 0.05)",
@@ -752,86 +849,152 @@ export default function VideoCleanup() {
             )}
           </div>
 
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginTop: "10px",
+            }}
+          >
+            <s-button onClick={toggleVideoPlayback}>
+              {videoIsPlaying ? "Pause" : "Play"}
+            </s-button>
+            <input
+              aria-label="Video position"
+              type="range"
+              min="0"
+              max={videoDuration || 0}
+              step="0.01"
+              value={Math.min(currentVideoTime, videoDuration || 0)}
+              onChange={(event) => seekVideo(event.target.value)}
+              style={{ flex: 1 }}
+            />
+            <span>
+              {currentVideoTime.toFixed(2)} seconds
+            </span>
+          </div>
+
           <s-paragraph>
-            Pause on a clear frame, select
-            Mark Text Area, then drag a tight
-            rectangle around the writing. Add
-            more areas when required.
+            1. Pause the video where the writing
+            appears. 2. Choose a brush size. 3.
+            Paint over the writing. The red paint
+            appears immediately. Release the mouse,
+            then paint again over anything missed.
+            The red paint will not appear in the
+            completed video.
           </s-paragraph>
-          <s-button
-            disabled={selectionMode}
-            onClick={moveVideoBackward}
-          >
-            Back 2 Seconds
-          </s-button>
-
-          <s-button
-            variant="primary"
-            disabled={
-              selectionMode ||
-              removalAreas.length >=
-                MAX_REMOVAL_AREAS
-            }
-            onClick={beginAreaSelection}
-          >
-            {selectionMode
-              ? "Drag Around the Text"
-              : "Mark Text Area"}
-          </s-button>
-
-          {selectionMode && (
-            <s-button
-              onClick={() => {
-                setSelectionMode(false);
-                setDragStart(null);
-                setDraftArea(null);
+          <label style={{ margin: "0 10px" }}>
+            Brush size{" "}
+            <select
+              value={selectionMode ? brushSize : ""}
+              onChange={(event) => {
+                setBrushSize(Number(event.target.value));
+                beginAreaSelection();
               }}
             >
-              Cancel Marking
-            </s-button>
+              <option value="" disabled>
+                Select size
+              </option>
+              <option value="2">Small</option>
+              <option value="4">Medium</option>
+              <option value="7">Large</option>
+              <option value="10">Extra Large</option>
+            </select>
+          </label>
+
+          <s-button
+            variant={brushTool === "paint" ? "primary" : undefined}
+            onClick={() => {
+              setBrushTool("paint");
+              beginAreaSelection();
+            }}
+          >
+            Paint
+          </s-button>
+
+          <s-button
+            variant={brushTool === "erase" ? "primary" : undefined}
+            disabled={paintStrokes.length === 0}
+            onClick={() => {
+              setBrushTool("erase");
+              beginAreaSelection();
+            }}
+          >
+            Eraser
+          </s-button>
+
+          <s-button
+            onClick={moveVideoBackward}
+          >
+            Back 1 Second
+          </s-button>
+
+          {removalAreas.length > 0 && (
+            <>
+              <s-button
+                onClick={undoLastStroke}
+              >
+                Undo Last Stroke
+              </s-button>
+              <s-button onClick={clearAllPaint}>
+                Clear All Paint
+              </s-button>
+            </>
           )}
 
           {removalAreas.length > 0 && (
             <div>
               <s-heading>
-                Marked Areas
+                Painted Areas
               </s-heading>
 
+              <s-banner tone="info">
+                Only the stage selected below will run.
+                All red paint is one combined mask,
+                one processing operation and one credit.
+              </s-banner>
+
+              <p>
+                <label>
+                  Processing stage{" "}
+                  <select
+                    value={processingStage}
+                    onChange={(event) =>
+                      updateProcessingStage(event.target.value)
+                    }
+                  >
+                    <option value="remove">
+                      Stage 1 — Remove Text
+                    </option>
+                    <option value="repair">
+                      Stage 2 — Repair Background
+                    </option>
+                  </select>
+                </label>{" "}
+
+                <label>
+                  Processor{" "}
+                  <select
+                    value={processingEngine}
+                    onChange={(event) =>
+                      updateProcessingEngine(event.target.value)
+                    }
+                  >
+                    <option value="propainter">
+                      ProPainter
+                    </option>
+                    <option value="void">
+                      VOID
+                    </option>
+                  </select>
+                </label>
+              </p>
+
               {removalAreas.map(
-                (area, index) => (
-                  <p key={index}>
-                    Text area{" "}
-                    {index + 1}:{" "}
-                    <label>
-                      Method{" "}
-                      <select
-                        value={
-                          area.cleanupMethod
-                        }
-                        onChange={(
-                          event,
-                        ) =>
-                          updateAreaMethod(
-                            index,
-                            event.target
-                              .value,
-                          )
-                        }
-                      >
-                        <option value="diagnostic">
-                          Diagnostic Outline
-                        </option>
-
-                        <option value="local">
-                          Local Cleanup —
-                          Small Text
-                        </option>
-                        <option value="background">
-                         Background Cover — Large Overlay
-                        </option>
-                      </select>
-                    </label>{" "}
-
+                (area) => (
+                  <p key="combined-mask">
+                    Repair time:{" "}
                     <label>
                       Start (seconds){" "}
                       <input
@@ -849,7 +1012,6 @@ export default function VideoCleanup() {
                           event,
                         ) =>
                           updateAreaTime(
-                            index,
                             "startTime",
                             event.target
                               .value,
@@ -875,25 +1037,13 @@ export default function VideoCleanup() {
                           event,
                         ) =>
                           updateAreaTime(
-                            index,
                             "endTime",
                             event.target
                               .value,
                           )
                         }
                       />
-                    </label>{" "}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removeMarkedArea(
-                          index,
-                        )
-                      }
-                    >
-                      Remove marking
-                    </button>
+                    </label>
                   </p>
                 ),
               )}
@@ -903,7 +1053,7 @@ export default function VideoCleanup() {
           <s-button
             onClick={clearVideo}
           >
-            Remove Video
+            Choose Different Video
           </s-button>
         </section>
       )}
@@ -937,13 +1087,12 @@ export default function VideoCleanup() {
         className={styles.mediaCard}
       >
         <s-heading>
-          Fast Text Removal
+          Painted Background Repair
         </s-heading>
 
         <s-unordered-list>
           <s-list-item>
-            Removes the areas you mark on the
-            video
+            Removes only the area painted red
           </s-list-item>
 
           <s-list-item>
@@ -952,9 +1101,8 @@ export default function VideoCleanup() {
           </s-list-item>
 
           <s-list-item>
-            Processes locally without
-            translation or an external AI
-            queue
+            Rebuilds the painted background with
+            ProPainter
           </s-list-item>
 
           <s-list-item>
