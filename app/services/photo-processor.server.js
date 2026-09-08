@@ -14,39 +14,35 @@ function createPrompt(processingChoice, sourceLanguage) {
 
   const preserveInstructions = `
 Preserve the original product, composition, dimensions, colours, lighting,
-background and all details that do not require editing. Do not add new
+background and every detail that does not require editing. Do not add new
 products, logos, promotional claims or decorative elements.
 `;
 
-  if (processingChoice === "translate") {
-    return `
-Edit this authorised product photo. Detect visible text in ${language} and
-replace it with accurate, natural English translations. Place each English
-translation in the same location and use a closely matching size, colour and
-style. ${preserveInstructions}
-`;
-  }
-
   if (processingChoice === "cleanup") {
     return `
-Edit this authorised product photo. Remove only the visible watermarks or
-unwanted overlays that the merchant has permission to remove. Reconstruct the
-underlying background naturally. ${preserveInstructions}
+Edit this authorised product photo using the supplied mask. Remove only the
+watermark or unwanted overlay inside the transparent painted part of the mask.
+Reconstruct the background naturally inside that area. Do not remove, replace,
+translate or alter any text or pixels outside the transparent masked area.
+${preserveInstructions}
 `;
   }
 
   return `
 Edit this authorised product photo. Detect visible text in ${language} and
-replace it with accurate, natural English translations. Place each English
-translation in the same location and use a closely matching size, colour and
-style. Also remove only visible watermarks or unwanted overlays that the
-merchant has permission to remove, reconstructing the underlying background
-naturally. ${preserveInstructions}
+replace it with accurate, natural, customer-facing retail English. Translate
+the meaning rather than producing awkward word-for-word English. Use concise
+phrasing that an English-speaking online store would normally display. For
+example, translate wording meaning a large available quantity as "Plenty in
+Stock", never "Mass In Stock". Place each English translation in the same
+location and use a closely matching size, colour and style. Do not remove
+unselected logos or watermarks. ${preserveInstructions}
 `;
 }
 
 export async function processPhoto({
   imageFile,
+  maskFile,
   processingChoice,
   sourceLanguage,
 }) {
@@ -61,19 +57,30 @@ export async function processPhoto({
   const image = await toFile(
     new Uint8Array(await imageFile.arrayBuffer()),
     imageFile.name || "uploaded-photo.png",
-    {
-      type: imageFile.type || "image/png",
-    },
+    { type: imageFile.type || "image/png" },
   );
 
-  const response = await client.images.edit({
+  const request = {
     model: "gpt-image-2",
     image,
     prompt: createPrompt(processingChoice, sourceLanguage),
     quality: "medium",
     size: "auto",
-  });
+  };
 
+  if (processingChoice === "cleanup") {
+    if (!maskFile || typeof maskFile.arrayBuffer !== "function") {
+      throw new Error("Paint over the watermark before processing.");
+    }
+
+    request.mask = await toFile(
+      new Uint8Array(await maskFile.arrayBuffer()),
+      "painted-removal-mask.png",
+      { type: "image/png" },
+    );
+  }
+
+  const response = await client.images.edit(request);
   const completedImage = response.data?.[0]?.b64_json;
 
   if (!completedImage) {
