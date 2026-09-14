@@ -3087,11 +3087,124 @@ export async function removeVideoText({
         });
         repairedVideoPath = voidRepairedPath;
       } else {
+        const selectedStartTime = Math.max(
+          selectedAreas[0].startTime,
+          0,
+        );
+        const selectedEndTime = Math.min(
+          selectedAreas[0].endTime,
+          duration,
+        );
+        const selectedDuration = Math.max(
+          selectedEndTime - selectedStartTime,
+          0.1,
+        );
+        const proPainterInputSegmentPath = path.join(
+          temporaryDirectory,
+          "propainter-input-segment.mp4",
+        );
+        const proPainterMaskSegmentPath = path.join(
+          temporaryDirectory,
+          "propainter-mask-segment.mp4",
+        );
+        const proPainterSegmentResultPath = path.join(
+          temporaryDirectory,
+          "propainter-segment-result.mp4",
+        );
+
+        await Promise.all([
+          runCommand(getFfmpegCommand(), [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            selectedStartTime.toFixed(3),
+            "-t",
+            selectedDuration.toFixed(3),
+            "-i",
+            firstPassPath,
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-y",
+            proPainterInputSegmentPath,
+          ]),
+          runCommand(getFfmpegCommand(), [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            selectedStartTime.toFixed(3),
+            "-t",
+            selectedDuration.toFixed(3),
+            "-i",
+            repairMaskPath,
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-y",
+            proPainterMaskSegmentPath,
+          ]),
+        ]);
+
+        logRemovalStage(
+          "ProPainter selected segment prepared",
+        );
+
         await runProPainter({
-          inputPath: firstPassPath,
-          maskPath: repairMaskPath,
-          cleanedVideoPath: proPainterRepairedPath,
+          inputPath: proPainterInputSegmentPath,
+          maskPath: proPainterMaskSegmentPath,
+          cleanedVideoPath: proPainterSegmentResultPath,
         });
+
+        await runCommand(getFfmpegCommand(), [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-i",
+          firstPassPath,
+          "-i",
+          proPainterSegmentResultPath,
+          "-filter_complex",
+          `[1:v]scale=${videoWidth}:${videoHeight},` +
+            `setpts=PTS-STARTPTS+${selectedStartTime.toFixed(3)}/TB` +
+            `[repaired_segment];` +
+            `[0:v][repaired_segment]overlay=x=0:y=0:` +
+            `eof_action=pass:shortest=0:` +
+            `enable='between(t,${selectedStartTime.toFixed(3)},` +
+            `${selectedEndTime.toFixed(3)})'[repaired_video]`,
+          "-map",
+          "[repaired_video]",
+          "-an",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "ultrafast",
+          "-crf",
+          "22",
+          "-pix_fmt",
+          "yuv420p",
+          "-movflags",
+          "+faststart",
+          "-y",
+          proPainterRepairedPath,
+        ]);
       }
 
       logRemovalStage(
