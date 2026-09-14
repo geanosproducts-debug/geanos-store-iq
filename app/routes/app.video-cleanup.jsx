@@ -1261,6 +1261,15 @@ export default function VideoCleanup() {
               start and end times.
             </s-paragraph>
 
+            <s-banner tone="warning">
+              Process one writing section at a time.
+              Video editing can take several minutes,
+              so please keep this page open and wait
+              patiently while processing completes.
+              When finished, use Continue Editing This
+              Video to remove or edit another section.
+            </s-banner>
+
             {processingError && (
               <s-banner tone="critical">
                 {processingError}
