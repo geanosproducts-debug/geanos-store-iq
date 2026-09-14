@@ -221,6 +221,8 @@ export default function VideoCleanup() {
     useState(null);
   const [videoIsPlaying, setVideoIsPlaying] =
     useState(false);
+  const [dismissedCompletedJobId, setDismissedCompletedJobId] =
+    useState(null);
   const [error, setError] = useState("");
   const [setupStarted, setSetupStarted] =
     useState(false);
@@ -357,6 +359,7 @@ export default function VideoCleanup() {
   }
 
   function clearVideo() {
+    setDismissedCompletedJobId(jobId || null);
     setSelectedFile(null);
     setRightsConfirmed(false);
     setRemovalAreas([]);
@@ -373,6 +376,46 @@ export default function VideoCleanup() {
     setRecordedStartTime(null);
     setRecordedEndTime(null);
     setVideoIsPlaying(false);
+  }
+
+  async function continueEditingCompletedVideo() {
+    if (!completedVideoUrl) return;
+
+    try {
+      const completedResponse = await fetch(completedVideoUrl);
+      const completedBlob = await completedResponse.blob();
+      const continuedVideoFile = new File(
+        [completedBlob],
+        "GEANOS-continued-video.mp4",
+        {
+          type: completedBlob.type || "video/mp4",
+        },
+      );
+
+      setDismissedCompletedJobId(jobId || null);
+      setSetupStarted(false);
+      setRemovalAreas([]);
+      setSelectionMode(false);
+      setPaintStrokes([]);
+      currentStrokeRef.current = null;
+      setVideoDuration(0);
+      setCurrentVideoTime(0);
+      setRecordedStartTime(null);
+      setRecordedEndTime(null);
+      setVideoIsPlaying(false);
+      setError("");
+      setInputKey((currentKey) => currentKey + 1);
+      setSelectedFile(continuedVideoFile);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch {
+      setError(
+        "The completed video could not be reloaded. Download it and upload it again.",
+      );
+    }
   }
 
   function getCanvasPoint(event) {
@@ -1241,7 +1284,8 @@ export default function VideoCleanup() {
           </section>
         )}
 
-      {completedVideoUrl && (
+      {completedVideoUrl &&
+        dismissedCompletedJobId !== jobId && (
         <section
           className={styles.mediaCard}
         >
@@ -1289,6 +1333,13 @@ export default function VideoCleanup() {
             onClick={clearVideo}
           >
             Process Another Video
+          </s-button>
+
+          <s-button
+            variant="primary"
+            onClick={continueEditingCompletedVideo}
+          >
+            Continue Editing This Video
           </s-button>
         </section>
       )}
