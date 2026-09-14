@@ -215,6 +215,10 @@ export default function VideoCleanup() {
     useState(null);
   const [currentVideoTime, setCurrentVideoTime] =
     useState(0);
+  const [recordedStartTime, setRecordedStartTime] =
+    useState(null);
+  const [recordedEndTime, setRecordedEndTime] =
+    useState(null);
   const [videoIsPlaying, setVideoIsPlaying] =
     useState(false);
   const [error, setError] = useState("");
@@ -320,6 +324,8 @@ export default function VideoCleanup() {
     currentStrokeRef.current = null;
     setVideoDuration(0);
     setCurrentVideoTime(0);
+    setRecordedStartTime(null);
+    setRecordedEndTime(null);
     setVideoIsPlaying(false);
 
     if (!file) {
@@ -364,6 +370,8 @@ export default function VideoCleanup() {
     );
     setVideoDuration(0);
     setCurrentVideoTime(0);
+    setRecordedStartTime(null);
+    setRecordedEndTime(null);
     setVideoIsPlaying(false);
   }
 
@@ -460,11 +468,13 @@ export default function VideoCleanup() {
 
     setRemovalAreas((currentAreas) => {
       const existingArea = currentAreas[0];
-      const startTime = existingArea?.startTime ?? currentTime;
-      const endTime = existingArea?.endTime ?? Math.min(
-        currentTime + 5,
-        videoDuration || currentTime + 5,
-      );
+      const startTime = recordedStartTime ??
+        existingArea?.startTime ?? currentTime;
+      const endTime = recordedEndTime ??
+        existingArea?.endTime ?? Math.min(
+          currentTime + 5,
+          videoDuration || currentTime + 5,
+        );
 
       return [{
         x: 0,
@@ -487,18 +497,21 @@ export default function VideoCleanup() {
     if (!video) return;
 
     video.pause();
-    video.currentTime = Math.max(
+    const startTime = Math.max(
       video.currentTime - 1,
       0,
     );
-    setCurrentVideoTime(video.currentTime);
+    video.currentTime = startTime;
+    setCurrentVideoTime(startTime);
+    setRecordedStartTime(startTime);
+    setRecordedEndTime(null);
     setRemovalAreas((currentAreas) =>
       currentAreas.map((area) => ({
         ...area,
-        startTime: video.currentTime,
+        startTime,
         endTime: Math.max(
           area.endTime,
-          video.currentTime + 0.1,
+          startTime + 0.1,
         ),
       })),
     );
@@ -511,16 +524,21 @@ export default function VideoCleanup() {
 
     video.pause();
     const finishTime = Math.max(video.currentTime, 0);
-    setCurrentVideoTime(finishTime);
+    setRecordedEndTime(finishTime);
     setRemovalAreas((currentAreas) =>
       currentAreas.map((area) => ({
         ...area,
         endTime: Math.max(
           finishTime,
-          area.startTime + 0.1,
+          (recordedStartTime ?? area.startTime) + 0.1,
         ),
       })),
     );
+    const paintFrameTime = recordedStartTime === null
+      ? finishTime
+      : Math.min(recordedStartTime + 1, finishTime);
+    video.currentTime = paintFrameTime;
+    setCurrentVideoTime(paintFrameTime);
     setError("");
   }
 
@@ -905,14 +923,38 @@ export default function VideoCleanup() {
           </div>
 
           <s-paragraph>
-            1. Pause the video where the writing
-            appears. 2. Choose a brush size. 3.
-            Paint over the writing. The red paint
-            appears immediately. Release the mouse,
-            then paint again over anything missed.
-            The red paint will not appear in the
-            completed video.
+            1. Pause where the writing first appears
+            and set the start. 2. Play to where the
+            writing disappears and set the finish.
+            The video returns to the writing frame.
+            3. Choose a brush size and paint over the
+            writing. The red paint will not appear in
+            the completed video.
           </s-paragraph>
+
+          <s-button
+            onClick={moveVideoBackward}
+          >
+            Back 1 Second & Set Start
+          </s-button>
+
+          <s-button
+            onClick={setFinishTime}
+            disabled={recordedStartTime === null}
+          >
+            Set Finish Time
+          </s-button>
+
+          <s-paragraph>
+            Start: {recordedStartTime === null
+              ? "Not set"
+              : `${recordedStartTime.toFixed(3)} seconds`}
+            {" | "}
+            Finish: {recordedEndTime === null
+              ? "Not set"
+              : `${recordedEndTime.toFixed(3)} seconds`}
+          </s-paragraph>
+
           <label style={{ margin: "0 10px" }}>
             Brush size{" "}
             <select
@@ -951,19 +993,6 @@ export default function VideoCleanup() {
             }}
           >
             Eraser
-          </s-button>
-
-          <s-button
-            onClick={moveVideoBackward}
-          >
-            Back 1 Second & Set Start
-          </s-button>
-
-          <s-button
-            onClick={setFinishTime}
-            disabled={removalAreas.length === 0}
-          >
-            Set Finish Time
           </s-button>
 
           {removalAreas.length > 0 && (
