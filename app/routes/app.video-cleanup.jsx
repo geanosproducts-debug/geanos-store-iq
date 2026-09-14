@@ -492,6 +492,35 @@ export default function VideoCleanup() {
       0,
     );
     setCurrentVideoTime(video.currentTime);
+    setRemovalAreas((currentAreas) =>
+      currentAreas.map((area) => ({
+        ...area,
+        startTime: video.currentTime,
+        endTime: Math.max(
+          area.endTime,
+          video.currentTime + 0.1,
+        ),
+      })),
+    );
+    setError("");
+  }
+
+  function setFinishTime() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.pause();
+    const finishTime = Math.max(video.currentTime, 0);
+    setCurrentVideoTime(finishTime);
+    setRemovalAreas((currentAreas) =>
+      currentAreas.map((area) => ({
+        ...area,
+        endTime: Math.max(
+          finishTime,
+          area.startTime + 0.1,
+        ),
+      })),
+    );
     setError("");
   }
 
@@ -927,7 +956,14 @@ export default function VideoCleanup() {
           <s-button
             onClick={moveVideoBackward}
           >
-            Back 1 Second
+            Back 1 Second & Set Start
+          </s-button>
+
+          <s-button
+            onClick={setFinishTime}
+            disabled={removalAreas.length === 0}
+          >
+            Set Finish Time
           </s-button>
 
           {removalAreas.length > 0 && (
