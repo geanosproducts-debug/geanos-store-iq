@@ -2103,21 +2103,23 @@ function createReplacementFilter(
           height: 12,
         };
 
-    const xPercentage = Math.max(
-      box.x - 1,
-      0,
-    );
-    const yPercentage = Math.max(
-      box.y - 1,
-      0,
-    );
+    const boxCentreX = box.x + box.width / 2;
+    const boxCentreY = box.y + box.height / 2;
     const widthPercentage = Math.min(
-      box.width + 2,
-      100 - xPercentage,
+      Math.max(box.width + 4, 42),
+      96,
     );
     const heightPercentage = Math.min(
-      Math.max(box.height + 2, 6),
-      100 - yPercentage,
+      Math.max(box.height + 3, 8),
+      20,
+    );
+    const xPercentage = Math.min(
+      Math.max(boxCentreX - widthPercentage / 2, 2),
+      98 - widthPercentage,
+    );
+    const yPercentage = Math.min(
+      Math.max(boxCentreY - heightPercentage / 2, 2),
+      98 - heightPercentage,
     );
 
     const x = Math.floor(
@@ -2149,10 +2151,10 @@ function createReplacementFilter(
       1,
     );
     const fontSize = Math.max(
-      18,
+      26,
       Math.min(
-        48,
-        Math.floor(height * 0.6),
+        56,
+        Math.floor(height * 0.72),
         Math.floor(
           width / estimatedTextWidth,
         ),
@@ -2163,7 +2165,7 @@ function createReplacementFilter(
       `drawtext=fontfile='${fontPath}'` +
         `:text='${escapedText}'` +
         `:fontcolor=white:fontsize=${fontSize}` +
-        `:borderw=2:bordercolor=black` +
+        `:borderw=3:bordercolor=black` +
         `:x=${x}+((${width}-text_w)/2)` +
         `:y=${y}+((${height}-text_h)/2)` +
         `:enable='gte(t,${start})*lt(t,${end})'`,
@@ -2238,6 +2240,7 @@ export async function translateVideo({
   translationMode = "replace",
   startTime,
   endTime,
+  removalAreas,
 }) {
   const processingStartedAt = Date.now();
   let stageStartedAt =
@@ -2397,6 +2400,14 @@ export async function translateVideo({
           result.timestamp + SAMPLE_INTERVAL_SECONDS,
           selectedEndTime,
         ),
+        box: removalAreas?.[0]
+          ? {
+              x: removalAreas[0].x,
+              y: removalAreas[0].y,
+              width: removalAreas[0].width,
+              height: removalAreas[0].height,
+            }
+          : result.box,
       }));
 
     logVideoStage(
@@ -2425,17 +2436,22 @@ export async function translateVideo({
     let renderVideoPath = inputPath;
 
     if (translationMode === "replace") {
-      await runFastVideoCleanup({
-        inputPath,
-        analysisResults,
-        outputPath: cleanedVideoPath,
-        duration,
-        videoWidth,
-        videoHeight,
+      if (!Array.isArray(removalAreas) || removalAreas.length !== 1) {
+        throw new Error("Paint over one written phrase before translating.");
+      }
+
+      const removedVideo = await removeVideoText({
+        videoFile,
+        removalAreas,
       });
 
+      await fs.writeFile(
+        cleanedVideoPath,
+        Buffer.from(removedVideo.videoBase64, "base64"),
+      );
+
       logVideoStage(
-        "FFmpeg fast text cleanup",
+        "Painted-mask text removal and background patching",
       );
 
       renderVideoPath = cleanedVideoPath;
