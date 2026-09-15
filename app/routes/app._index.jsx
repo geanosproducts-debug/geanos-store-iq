@@ -237,6 +237,22 @@ export default function Index() {
 </s-button>
 </s-section
 >
+
+      <s-section heading="Photo & Video Tools">
+        <s-paragraph>
+          Prepare product media for your Shopify store with separate tools
+          for photo processing, video text removal and video text translation.
+        </s-paragraph>
+
+        <s-button variant="primary" href="/app/media-tools">
+          Open Photo & Video Tools
+        </s-button>
+
+        <s-button href="/app/video-tools">
+          Open Video Tools
+        </s-button>
+      </s-section>
+
       <s-section slot="aside" heading="Quick Store Status">
         <s-paragraph>
           <s-text>Shopify Connection: </s-text>

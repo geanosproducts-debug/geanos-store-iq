@@ -58,23 +58,23 @@ export default function MediaTools() {
       </section>
 
       <section className={styles.mediaCard}>
-        <s-heading>Video Translator & Cleanup</s-heading>
+        <s-heading>Video Text Tools</s-heading>
 
         <s-paragraph>
-          Detect text across video frames, add English translations or
-          subtitles, remove approved overlays, and prepare the finished video
-          for download.
+          Open the dedicated video workspace to choose between text removal
+          and text translation. Each action runs on its own page so the two
+          processing workflows remain separate.
         </s-paragraph>
 
         <s-unordered-list>
-          <s-list-item>Translate visible video text</s-list-item>
-          <s-list-item>Add English subtitles when required</s-list-item>
-          <s-list-item>Remove authorised watermarks and overlays</s-list-item>
-          <s-list-item>Preview and download the finished video</s-list-item>
+          <s-list-item>Remove one authorised text section per run</s-list-item>
+          <s-list-item>Translate visible foreign-language text</s-list-item>
+          <s-list-item>Keep removal and translation processing separate</s-list-item>
+          <s-list-item>Review and download completed videos</s-list-item>
         </s-unordered-list>
 
-       <s-button href="/app/video-cleanup" variant="primary">
-        Open Video Translator & Cleanup
+       <s-button href="/app/video-tools" variant="primary">
+        Open Video Tools
         </s-button>
       </section>
 
