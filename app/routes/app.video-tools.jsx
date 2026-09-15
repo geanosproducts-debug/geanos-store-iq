@@ -20,7 +20,9 @@ export default function VideoTools() {
       </section>
 
       <section className={styles.mediaCard}>
-        <s-heading>What GEANOS Video Tools Can Do</s-heading>
+        <h2 className={styles.majorHeading}>
+          What GEANOS Video Tools Can Do
+        </h2>
 
         <s-paragraph>
           GEANOS Video Tools helps merchants prepare authorised product videos
@@ -43,7 +45,7 @@ export default function VideoTools() {
       </section>
 
       <section className={styles.mediaCard}>
-        <s-heading>Choose a Video Action</s-heading>
+        <h2 className={styles.majorHeading}>Choose a Video Action</h2>
 
         <s-paragraph>
           Choose one action below. Text removal and text translation use
@@ -60,7 +62,7 @@ export default function VideoTools() {
       </section>
 
       <section className={styles.mediaCard}>
-        <s-heading>Credit Packs</s-heading>
+        <h2 className={styles.majorHeading}>Credit Packs</h2>
 
         <s-paragraph>
           Video processing services incur higher operating costs than photo
@@ -71,8 +73,8 @@ export default function VideoTools() {
         <s-stack direction="inline" gap="base">
           {creditPacks.map((pack) => (
             <s-box key={pack.credits} padding="base" flex-grow="1">
-              <s-heading>{pack.credits} Credits</s-heading>
-              <s-heading>${pack.price}</s-heading>
+              <h3 className={styles.creditHeading}>{pack.credits} Credits</h3>
+              <h3 className={styles.creditHeading}>${pack.price}</h3>
               <s-paragraph>USD</s-paragraph>
               <s-paragraph>
                 One-time media-credit pack purchased securely through Shopify.
@@ -87,11 +89,13 @@ export default function VideoTools() {
       </section>
 
       <section className={styles.mediaCard}>
-        <s-heading>Video Tools Questions & Answers</s-heading>
+        <h2 className={styles.majorHeading}>
+          Video Tools Questions & Answers
+        </h2>
 
-        <s-heading>
+        <h3 className={styles.questionHeading}>
           Can I remove or translate more than one section of writing?
-        </s-heading>
+        </h3>
         <s-paragraph>
           No. The service works best when completing one section at a time.
           For text removal, mark and process only one script section, then use
@@ -102,35 +106,41 @@ export default function VideoTools() {
           repairing the background take most of the processing time.
         </s-paragraph>
 
-        <s-heading>How long does processing take?</s-heading>
+        <h3 className={styles.questionHeading}>
+          How long does processing take?
+        </h3>
         <s-paragraph>
           Video editing can take several minutes. Keep the processing page open
           and wait patiently until the completed video appears.
         </s-paragraph>
 
-        <s-heading>Will the original sound be kept?</s-heading>
+        <h3 className={styles.questionHeading}>
+          Will the original sound be kept?
+        </h3>
         <s-paragraph>
           Yes. The working text-removal process restores the original audio to
           the completed video.
         </s-paragraph>
 
-        <s-heading>Do failed processing attempts use a credit?</s-heading>
+        <h3 className={styles.questionHeading}>
+          Do failed processing attempts use a credit?
+        </h3>
         <s-paragraph>
-          For the first pass, the credit will be refunded if processing fails.
-          If you are processing more than one pass and a later pass fails, the
-          credit used for that additional pass will be forfeited.
+          For 1 pass Yes your credit will be refunded, if you are processing more than 1 pass, and the system fails, as it should, you will forfeit that credit.
         </s-paragraph>
 
-        <s-heading>Are uploaded videos stored permanently?</s-heading>
+        <h3 className={styles.questionHeading}>
+          Are uploaded videos stored permanently?
+        </h3>
         <s-paragraph>
           No. When you close the video workshop, all uploaded and completed
           videos are deleted from the system. Download the completed video
           before closing the workshop.
         </s-paragraph>
 
-        <s-heading>
+        <h3 className={styles.questionHeading}>
           Do I need the owner&apos;s consent or permission to use these services?
-        </s-heading>
+        </h3>
         <s-paragraph>
           Yes. Due to copyright ownership requirements, you must own the video,
           have permission from the copyright owner, or be an authorised agent
