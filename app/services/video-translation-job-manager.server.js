@@ -16,6 +16,7 @@ export function startVideoTranslationJob({
   sourceLanguage,
   startTime,
   endTime,
+  removalAreas,
   passNumber,
   creditRequestId,
 }) {
@@ -28,12 +29,16 @@ export function startVideoTranslationJob({
     updatedAt: Date.now(),
   });
 
+  console.log(`[VIDEO TRANSLATION] Background job ${jobId} created.`);
+
   void Promise.resolve().then(async () => {
     translationJobs.set(jobId, {
       ...translationJobs.get(jobId),
       status: "processing",
       updatedAt: Date.now(),
     });
+
+    console.log(`[VIDEO TRANSLATION] Background job ${jobId} processing started.`);
 
     try {
       const completedVideo = await translateVideo({
@@ -42,7 +47,10 @@ export function startVideoTranslationJob({
         translationMode: "replace",
         startTime,
         endTime,
+        removalAreas,
       });
+
+      console.log(`[VIDEO TRANSLATION] Background job ${jobId} video processing completed.`);
 
       await completeMediaCredit(creditRequestId);
 
@@ -57,6 +65,8 @@ export function startVideoTranslationJob({
           translationJobs.get(jobId)?.createdAt || Date.now(),
         updatedAt: Date.now(),
       });
+
+      console.log(`[VIDEO TRANSLATION] Background job ${jobId} ready for download.`);
     } catch (error) {
       console.error("Background video translation failed:", error);
 
