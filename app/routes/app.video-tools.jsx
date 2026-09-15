@@ -82,10 +82,17 @@ export default function VideoTools() {
       <section className={styles.mediaCard}>
         <s-heading>Video Tools Questions & Answers</s-heading>
 
-        <s-heading>Can I remove more than one section of writing?</s-heading>
+        <s-heading>
+          Can I remove or translate more than one section of writing?
+        </s-heading>
         <s-paragraph>
-          Yes. Process one section at a time, then choose Continue Editing This
-          Video to complete the next section.
+          Yes. The service works best when completing one section at a time.
+          For text removal, mark and process only one script section, then use
+          Continue Editing This Video to complete the next section. For
+          translation, translate one section at a time because each phrase must
+          be translated, the original writing removed, the background repaired,
+          and the English wording added. Removing the original writing and
+          repairing the background take most of the processing time.
         </s-paragraph>
 
         <s-heading>How long does processing take?</s-heading>
