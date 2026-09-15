@@ -2360,6 +2360,11 @@ export async function translateVideo({
       );
     }
 
+    const translatedTextStartTime = Math.min(
+      selectedStartTime + 1,
+      Math.max(selectedEndTime - 0.1, selectedStartTime),
+    );
+
     logVideoStage(
       "Upload preparation and video metadata",
     );
@@ -2394,7 +2399,7 @@ export async function translateVideo({
         ...result,
         timestamp: Math.max(
           result.timestamp,
-          selectedStartTime,
+          translatedTextStartTime,
         ),
         endTimestamp: Math.min(
           result.timestamp + SAMPLE_INTERVAL_SECONDS,
