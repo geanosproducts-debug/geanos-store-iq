@@ -1,6 +1,10 @@
 import styles from "../styles/media-tools.module.css";
 
-const creditPacks = [10, 25, 50];
+const creditPacks = [
+  { credits: 10, price: "15.00" },
+  { credits: 25, price: "35.00" },
+  { credits: 50, price: "70.00" },
+];
 
 export default function VideoTools() {
   return (
@@ -59,14 +63,17 @@ export default function VideoTools() {
         <s-heading>Credit Packs</s-heading>
 
         <s-paragraph>
-          Video processing uses the GEANOS media-credit account. Choose from
-          the same credit-pack sizes available through Photo Cleaner.
+          Video processing services incur higher operating costs than photo
+          processing. For this reason, video-credit prices are slightly higher
+          than Photo Cleaner credit prices.
         </s-paragraph>
 
         <s-stack direction="inline" gap="base">
-          {creditPacks.map((credits) => (
-            <s-box key={credits} padding="base" flex-grow="1">
-              <s-heading>{credits} Credits</s-heading>
+          {creditPacks.map((pack) => (
+            <s-box key={pack.credits} padding="base" flex-grow="1">
+              <s-heading>{pack.credits} Credits</s-heading>
+              <s-heading>${pack.price}</s-heading>
+              <s-paragraph>USD</s-paragraph>
               <s-paragraph>
                 One-time media-credit pack purchased securely through Shopify.
               </s-paragraph>
@@ -86,7 +93,7 @@ export default function VideoTools() {
           Can I remove or translate more than one section of writing?
         </s-heading>
         <s-paragraph>
-          Yes. The service works best when completing one section at a time.
+          No. The service works best when completing one section at a time.
           For text removal, mark and process only one script section, then use
           Continue Editing This Video to complete the next section. For
           translation, translate one section at a time because each phrase must
@@ -109,14 +116,25 @@ export default function VideoTools() {
 
         <s-heading>Do failed processing attempts use a credit?</s-heading>
         <s-paragraph>
-          Failed processing attempts are refunded automatically when the media
-          credit has been reserved through GEANOS Store IQ.
+          For the first pass, the credit will be refunded if processing fails.
+          If you are processing more than one pass and a later pass fails, the
+          credit used for that additional pass will be forfeited.
         </s-paragraph>
 
         <s-heading>Are uploaded videos stored permanently?</s-heading>
         <s-paragraph>
-          Download the completed video before leaving the page. Uploaded and
-          completed media should not be treated as permanent storage.
+          No. When you close the video workshop, all uploaded and completed
+          videos are deleted from the system. Download the completed video
+          before closing the workshop.
+        </s-paragraph>
+
+        <s-heading>
+          Do I need the owner&apos;s consent or permission to use these services?
+        </s-heading>
+        <s-paragraph>
+          Yes. Due to copyright ownership requirements, you must own the video,
+          have permission from the copyright owner, or be an authorised agent
+          or dropshipper connected to the supplier.
         </s-paragraph>
       </section>
     </s-page>
