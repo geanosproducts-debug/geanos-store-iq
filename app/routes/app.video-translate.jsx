@@ -34,6 +34,21 @@ function parseRemovalAreas(value) {
   }
 }
 
+function parsePreviousEdits(value) {
+  try {
+    const edits = JSON.parse(value || "[]");
+    return Array.isArray(edits)
+      ? edits.filter((edit) =>
+          edit?.removalArea?.maskDataUrl?.startsWith("data:image/png;base64,") &&
+          typeof edit?.cue?.text === "string" &&
+          Number(edit?.cue?.end) > Number(edit?.cue?.start),
+        ).slice(0, 19)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const account = await getMediaCreditAccount(session.shop);
@@ -42,9 +57,7 @@ export async function loader({ request }) {
 
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
-  console.log("[VIDEO TRANSLATION] Authenticated request; reading submitted video data.");
   const formData = await request.formData();
-  console.log("[VIDEO TRANSLATION] Submitted video data received.");
 
   if (formData.get("intent") === "status") {
     const job = getVideoTranslationJob(formData.get("jobId"));
@@ -53,12 +66,22 @@ export async function action({ request }) {
     return { ...job, creditBalance: account.balance };
   }
 
+  console.log("[VIDEO TRANSLATION] New video pass received.");
+
   const videoFile = formData.get("video");
   const sourceLanguage = String(formData.get("sourceLanguage") || "auto");
   const startTime = Number(formData.get("startTime"));
   const endTime = Number(formData.get("endTime"));
   const passNumber = Math.max(Number(formData.get("passNumber")) || 1, 1);
   const removalAreas = parseRemovalAreas(formData.get("removalAreas"));
+  const previousEdits = parsePreviousEdits(formData.get("previousEdits"));
+
+  console.log("[VIDEO TRANSLATION REQUEST]", {
+    passNumber,
+    previousEditCount: previousEdits.length,
+    submittedStartTime: startTime,
+    submittedEndTime: endTime,
+  });
 
   if (formData.get("rightsConfirmed") !== "true") {
     return { error: "Confirm that you own this video or have permission to translate and edit it." };
@@ -95,6 +118,7 @@ export async function action({ request }) {
     console.log("[VIDEO TRANSLATION] Credit reserved; creating background job.");
     const jobId = startVideoTranslationJob({
       videoFile, sourceLanguage, startTime, endTime, removalAreas,
+      previousEdits,
       passNumber, creditRequestId,
     });
     const account = await getMediaCreditAccount(session.shop);
@@ -132,6 +156,8 @@ export default function VideoTranslate() {
   const maskCanvasRef = useRef(null);
   const activeStrokeRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [originalFile, setOriginalFile] = useState(null);
+  const [editHistory, setEditHistory] = useState([]);
   const [previewUrl, setPreviewUrl] = useState("");
   const [sourceLanguage, setSourceLanguage] = useState("auto");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -170,7 +196,14 @@ export default function VideoTranslate() {
   useEffect(() => {
     if (Number.isFinite(statusFetcher.data?.creditBalance)) setCreditBalance(statusFetcher.data.creditBalance);
     if (statusFetcher.data?.completedVideoUrl) setCompletedVideoUrl(statusFetcher.data.completedVideoUrl);
-  }, [statusFetcher.data]);
+    if (statusFetcher.data?.completedEdit) {
+      setEditHistory((edits) =>
+        edits.length >= passNumber
+          ? edits
+          : [...edits, statusFetcher.data.completedEdit],
+      );
+    }
+  }, [statusFetcher.data, passNumber]);
 
   useEffect(() => {
     if (!jobId || completedVideoUrl || failed) return undefined;
@@ -189,7 +222,8 @@ export default function VideoTranslate() {
     if (file.size > MAX_VIDEO_SIZE) {
       setLocalError("The selected video is larger than the 200 MB limit."); return;
     }
-    setSelectedFile(file); setStartTime(null); setEndTime(null);
+    setSelectedFile(file); setOriginalFile(file); setEditHistory([]); setPassNumber(1);
+    setStartTime(null); setEndTime(null);
     setPainting(false); setPaintStrokes([]);
     setCompletedVideoUrl(""); setJobId("");
   }
@@ -308,14 +342,15 @@ export default function VideoTranslate() {
 
   function submitTranslation() {
     const removalArea = createRemovalArea();
-    if (!selectedFile || !removalArea || !rightsConfirmed) return;
+    if (!originalFile || !removalArea || !rightsConfirmed) return;
     setLocalError(""); setCompletedVideoUrl(""); setSubmissionStarted(true);
     const data = new FormData();
-    data.set("intent", "start"); data.set("video", selectedFile);
+    data.set("intent", "start"); data.set("video", originalFile);
     data.set("sourceLanguage", sourceLanguage); data.set("rightsConfirmed", "true");
     data.set("startTime", String(startTime)); data.set("endTime", String(endTime));
     data.set("passNumber", String(passNumber));
     data.set("removalAreas", JSON.stringify([removalArea]));
+    data.set("previousEdits", JSON.stringify(editHistory));
     fetcher.submit(data, { method: "post", encType: "multipart/form-data" });
   }
 
@@ -351,6 +386,7 @@ export default function VideoTranslate() {
         <h2 className={styles.majorHeading}>1. Upload and Preview Video</h2>
         <input type="file" accept="video/mp4,video/webm,video/quicktime" disabled={processing} onChange={(event) => chooseFile(event.target.files?.[0] || null)} />
         <s-paragraph>MP4, WEBM or MOV; maximum 200 MB. Credits available: {creditBalance}.</s-paragraph>
+        {originalFile && <s-banner tone="info">Clean master retained: {originalFile.name}. Completed edit instructions: {editHistory.length}. Later passes will rebuild from this clean master.</s-banner>}
         {previewUrl && <div style={{ position: "relative", width: "100%" }}>
           <video ref={videoRef} src={previewUrl} controls={!painting}
             onLoadedMetadata={sizeCanvases}

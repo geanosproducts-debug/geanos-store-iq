@@ -17,6 +17,7 @@ export function startVideoTranslationJob({
   startTime,
   endTime,
   removalAreas,
+  previousEdits,
   passNumber,
   creditRequestId,
 }) {
@@ -48,6 +49,7 @@ export function startVideoTranslationJob({
         startTime,
         endTime,
         removalAreas,
+        previousEdits,
       });
 
       console.log(`[VIDEO TRANSLATION] Background job ${jobId} video processing completed.`);
@@ -60,6 +62,8 @@ export function startVideoTranslationJob({
           `data:${completedVideo.mimeType};base64,` +
           completedVideo.videoBase64,
         subtitleCount: completedVideo.subtitleCount,
+        completedEdit: completedVideo.completedEdit,
+        editCount: completedVideo.editCount,
         passNumber,
         createdAt:
           translationJobs.get(jobId)?.createdAt || Date.now(),

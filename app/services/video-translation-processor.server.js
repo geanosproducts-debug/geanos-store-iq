@@ -1201,31 +1201,66 @@ async function createManualRepairMaskVideo({
   videoWidth,
   videoHeight,
 }) {
-  const paintedMaskArea = removalAreas.find(
+  const paintedMaskAreas = removalAreas.filter(
     (area) =>
       area.cleanupMethod === "brush" &&
       typeof area.maskDataUrl === "string" &&
       area.maskDataUrl.startsWith("data:image/png;base64,"),
   );
 
-  if (paintedMaskArea) {
-    const paintedMaskPath = path.join(
-      path.dirname(maskPath),
-      "painted-repair-mask.png",
-    );
-    const encodedMask = paintedMaskArea.maskDataUrl.replace(
-      /^data:image\/png;base64,/,
-      "",
+  if (paintedMaskAreas.length > 0) {
+    const paintedMaskPaths = await Promise.all(
+      paintedMaskAreas.map(async (area, index) => {
+        const paintedMaskPath = path.join(
+          path.dirname(maskPath),
+          `painted-repair-mask-${index}.png`,
+        );
+        const encodedMask = area.maskDataUrl.replace(
+          /^data:image\/png;base64,/,
+          "",
+        );
+        await fs.writeFile(
+          paintedMaskPath,
+          Buffer.from(encodedMask, "base64"),
+        );
+        return paintedMaskPath;
+      }),
     );
 
-    await fs.writeFile(
-      paintedMaskPath,
-      Buffer.from(encodedMask, "base64"),
+    const inputArguments = paintedMaskPaths.flatMap(
+      (paintedMaskPath) => [
+        "-loop",
+        "1",
+        "-framerate",
+        "30",
+        "-i",
+        paintedMaskPath,
+      ],
     );
 
-    const activeTimeRange =
-      `between(t,${paintedMaskArea.startTime.toFixed(3)},` +
-      `${paintedMaskArea.endTime.toFixed(3)})`;
+    const filterParts = [
+      `[0:v]format=gray,drawbox=x=0:y=0:w=iw:h=ih:` +
+        `color=black:t=fill[mask_base]`,
+    ];
+    let currentMaskLabel = "mask_base";
+
+    paintedMaskAreas.forEach((area, index) => {
+      const scaledLabel = `painted_mask_${index}`;
+      const outputLabel = `combined_mask_${index}`;
+      const activeTimeRange =
+        `between(t,${area.startTime.toFixed(3)},` +
+        `${area.endTime.toFixed(3)})`;
+      filterParts.push(
+        `[${index + 1}:v]scale=${videoWidth}:${videoHeight},` +
+          `format=gray[${scaledLabel}]`,
+      );
+      filterParts.push(
+        `[${currentMaskLabel}][${scaledLabel}]overlay=x=0:y=0:` +
+          `enable='${activeTimeRange}':eof_action=pass:shortest=0` +
+          `[${outputLabel}]`,
+      );
+      currentMaskLabel = outputLabel;
+    });
 
     await runCommand(getFfmpegCommand(), [
       "-hide_banner",
@@ -1233,20 +1268,11 @@ async function createManualRepairMaskVideo({
       "error",
       "-i",
       videoPath,
-      "-loop",
-      "1",
-      "-framerate",
-      "30",
-      "-i",
-      paintedMaskPath,
+      ...inputArguments,
       "-filter_complex",
-      `[0:v]format=gray,drawbox=x=0:y=0:w=iw:h=ih:` +
-        `color=black:t=fill[black_base];` +
-        `[1:v]scale=${videoWidth}:${videoHeight},format=gray[painted_mask];` +
-        `[black_base][painted_mask]overlay=x=0:y=0:` +
-        `enable='${activeTimeRange}':shortest=1[mask_output]`,
+      filterParts.join(";"),
       "-map",
-      "[mask_output]",
+      `[${currentMaskLabel}]`,
       "-an",
       "-c:v",
       "libx264",
@@ -2241,6 +2267,7 @@ export async function translateVideo({
   startTime,
   endTime,
   removalAreas,
+  previousEdits = [],
 }) {
   const processingStartedAt = Date.now();
   let stageStartedAt =
@@ -2419,14 +2446,33 @@ export async function translateVideo({
       "OpenAI text detection and translation",
     );
 
-    const subtitleCues = createSubtitleCues({
+    const currentSubtitleCues = createSubtitleCues({
       analysisResults,
       duration,
     });
 
-    if (subtitleCues.length === 0) {
+    if (currentSubtitleCues.length === 0) {
       throw new NoTranslatableVideoTextError();
     }
+
+    const retainedEdits = (Array.isArray(previousEdits) ? previousEdits : [])
+      .filter(
+        (edit) =>
+          edit?.removalArea?.maskDataUrl?.startsWith("data:image/png;base64,") &&
+          typeof edit?.cue?.text === "string" &&
+          Number(edit?.cue?.end) > Number(edit?.cue?.start),
+      )
+      .slice(0, 19);
+
+    const retainedCues = retainedEdits.map((edit) => ({
+      start: Number(edit.cue.start),
+      end: Number(edit.cue.end),
+      text: edit.cue.text,
+      box: edit.cue.box,
+    }));
+
+    const subtitleCues = [...retainedCues, ...currentSubtitleCues]
+      .sort((left, right) => left.start - right.start);
 
     await fs.writeFile(
       subtitlePath,
@@ -2451,9 +2497,26 @@ export async function translateVideo({
         endTime: selectedEndTime,
       }));
 
+      const retainedRemovalAreas = retainedEdits.map(
+        (edit) => edit.removalArea,
+      );
+
+      const combinedRemovalAreas = [
+        ...retainedRemovalAreas,
+        ...synchronizedRemovalAreas,
+      ];
+
+      console.log("[VIDEO TRANSLATION EDIT PLAN]", {
+        previousEditCount: retainedEdits.length,
+        totalEditCount: combinedRemovalAreas.length,
+        submittedStartTime: selectedStartTime,
+        removalAndEnglishStartTime: translatedTextStartTime,
+        finishTime: selectedEndTime,
+      });
+
       const removedVideo = await removeVideoText({
         videoFile,
-        removalAreas: synchronizedRemovalAreas,
+        removalAreas: combinedRemovalAreas,
       });
 
       await fs.writeFile(
@@ -2495,6 +2558,15 @@ export async function translateVideo({
         completedVideo.toString("base64"),
       mimeType: "video/mp4",
       subtitleCount: subtitleCues.length,
+      completedEdit: {
+        removalArea: {
+          ...removalAreas[0],
+          startTime: translatedTextStartTime,
+          endTime: selectedEndTime,
+        },
+        cue: currentSubtitleCues[0],
+      },
+      editCount: retainedEdits.length + 1,
     };
   } finally {
     await fs.rm(temporaryDirectory, {
@@ -3153,11 +3225,11 @@ export async function removeVideoText({
         repairedVideoPath = voidRepairedPath;
       } else {
         const selectedStartTime = Math.max(
-          selectedAreas[0].startTime,
+          Math.min(...selectedAreas.map((area) => area.startTime)),
           0,
         );
         const selectedEndTime = Math.min(
-          selectedAreas[0].endTime,
+          Math.max(...selectedAreas.map((area) => area.endTime)),
           duration,
         );
         const selectedDuration = Math.max(
