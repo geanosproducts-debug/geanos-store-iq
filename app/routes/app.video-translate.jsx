@@ -276,9 +276,10 @@ export default function VideoTranslate() {
   }
 
   function pointerUp() {
-    if (!activeStrokeRef.current) return;
-    setPaintStrokes((strokes) => [...strokes, activeStrokeRef.current]);
+    const completedStroke = activeStrokeRef.current;
+    if (!completedStroke) return;
     activeStrokeRef.current = null;
+    setPaintStrokes((strokes) => [...strokes, completedStroke]);
   }
 
   function createRemovalArea() {
