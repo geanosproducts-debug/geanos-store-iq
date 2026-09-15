@@ -2445,9 +2445,15 @@ export async function translateVideo({
         throw new Error("Paint over one written phrase before translating.");
       }
 
+      const synchronizedRemovalAreas = removalAreas.map((area) => ({
+        ...area,
+        startTime: translatedTextStartTime,
+        endTime: selectedEndTime,
+      }));
+
       const removedVideo = await removeVideoText({
         videoFile,
-        removalAreas,
+        removalAreas: synchronizedRemovalAreas,
       });
 
       await fs.writeFile(
