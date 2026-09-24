@@ -25,7 +25,7 @@ export const action = async ({ request }) => {
 
   if (!pack) {
     console.error(
-      `No photo-credit pack matched Shopify purchase "${purchase.name}".`,
+      `No video-credit pack matched Shopify purchase "${purchase.name}".`,
     );
     return new Response();
   }
@@ -39,7 +39,7 @@ export const action = async ({ request }) => {
     });
 
     console.log(
-      `Added ${pack.credits} purchased photo credits to ${shop}.`,
+      `Added ${pack.credits} purchased video credits to ${shop}.`,
     );
   } catch (error) {
     if (error?.code === "P2002") {

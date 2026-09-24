@@ -1,14 +1,16 @@
 ﻿import {
-  redirect,
   useActionData,
   useLoaderData,
-  useSubmit,
+  Form,
+  useNavigation,
 } from "react-router";
+import { Prisma } from "@prisma/client";
 import { authenticate } from "../shopify.server";
-import { MEDIA_CREDIT_PACKS } from "../services/media-credit-packs";
+import { MEDIA_CREDIT_PACKS, getMediaCreditPackByName } from "../services/media-credit-packs";
 import {
   getMediaCreditAccount,
   getRecentMediaCreditTransactions,
+  grantMediaCredits,
 } from "../services/media-credits.server";
 import styles from "../styles/media-tools.module.css";
 
@@ -17,7 +19,7 @@ const CREDIT_TYPE_LABELS = {
   monthly_allowance: "Monthly credits added",
   purchase: "Additional credits purchased",
   refund: "Processing credit refunded",
-  usage: "Photo processing",
+  usage: "Video processing",
 };
 
 const PROCESSING_TYPE_LABELS = {
@@ -42,9 +44,46 @@ function formatTransactionStatus(status) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+async function reconcileApprovedPurchases(admin, shop) {
+  const response = await admin.graphql(`#graphql
+    query RecentVideoCreditPurchases {
+      currentAppInstallation {
+        oneTimePurchases(first: 20, reverse: true) {
+          nodes { id name status test price { amount currencyCode } }
+        }
+      }
+    }
+  `);
+  const result = await response.json();
+  if (result.errors?.length) {
+    throw new Error("Shopify could not verify the video-credit purchase.");
+  }
+  for (const purchase of result.data?.currentAppInstallation?.oneTimePurchases?.nodes || []) {
+    const pack = getMediaCreditPackByName(purchase.name);
+    if (
+      purchase.status !== "ACTIVE" || !purchase.id || !pack ||
+      Number(purchase.price?.amount) !== Number(pack.price) ||
+      purchase.price?.currencyCode !== pack.currencyCode ||
+      (shop === "geanos-app-development.myshopify.com" && !purchase.test)
+    ) continue;
+    try {
+      await grantMediaCredits({
+        shop, amount: pack.credits, type: "purchase", externalReference: purchase.id,
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
+        throw error;
+      }
+    }
+  }
+}
+
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const requestUrl = new URL(request.url);
+  if (requestUrl.searchParams.get("purchase") === "returned") {
+    await reconcileApprovedPurchases(admin, session.shop);
+  }
 
   const [account, transactions] = await Promise.all([
     getMediaCreditAccount(session.shop),
@@ -60,7 +99,7 @@ export async function loader({ request }) {
       rolloverEnabled: account.rolloverEnabled,
     },
     purchaseReturned:
-      requestUrl.searchParams.get("purchase") === "approved",
+      requestUrl.searchParams.get("purchase") === "returned",
     transactions: transactions.map((transaction) => ({
       id: transaction.id,
       amount: transaction.amount,
@@ -73,21 +112,27 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const packId = formData.get("packId");
   const pack = MEDIA_CREDIT_PACKS[packId];
 
   if (!pack) {
     return {
-      error: "The selected photo-credit pack is not available.",
+      error: "The selected video-credit pack is not available.",
     };
   }
 
-  const returnUrl = new URL(
-    "/app/media-credits?purchase=approved",
-    request.url,
-  ).toString();
+  const requestUrl = new URL(request.url);
+  const returnAddress = new URL("/app/media-credits", requestUrl);
+  returnAddress.searchParams.set("purchase", "returned");
+  returnAddress.searchParams.set("shop", session.shop);
+  const host = requestUrl.searchParams.get("host");
+  if (host) {
+    returnAddress.searchParams.set("host", host);
+    returnAddress.searchParams.set("embedded", "1");
+  }
+  const returnUrl = returnAddress.toString();
 
   const response = await admin.graphql(
     `#graphql
@@ -126,8 +171,7 @@ export async function action({ request }) {
         },
         returnUrl,
         test:
-          process.env.SHOPIFY_BILLING_TEST === "true" ||
-          process.env.NODE_ENV !== "production",
+          session.shop === "geanos-app-development.myshopify.com",
       },
     },
   );
@@ -150,13 +194,13 @@ export async function action({ request }) {
     };
   }
 
-  throw redirect(purchaseResult.confirmationUrl);
+  return { confirmationUrl: purchaseResult.confirmationUrl };
 }
 
 export default function MediaCredits() {
   const { account, purchaseReturned, transactions } = useLoaderData();
   const actionData = useActionData();
-  const submit = useSubmit();
+  const navigation = useNavigation();
   const creditPacks = Object.values(MEDIA_CREDIT_PACKS);
 
   return (
@@ -169,11 +213,10 @@ export default function MediaCredits() {
 
       {purchaseReturned && (
         <section className={styles.mediaCard}>
-          <s-banner tone="success">
-            Shopify has returned you to Video Fixer. Approved video
-            credits are added automatically when Shopify confirms the
-            purchase. Refresh this page if the updated balance does not
-            appear immediately.
+          <s-banner tone="info">
+            Shopify has returned you to Video Fixer. Credits are added
+            after Shopify confirms an approved purchase. Refresh this page
+            if the updated balance does not appear immediately.
           </s-banner>
         </section>
       )}
@@ -283,19 +326,25 @@ export default function MediaCredits() {
             $2.00 USD per credit.
           </s-paragraph>
 
-          <s-button
-            onClick={() =>
-              submit(
-                { packId: pack.id },
-                { method: "post" },
-              )
-            }
-            variant="primary"
-          >
-            Buy {pack.credits} Credits
-          </s-button>
+          <Form method="post">
+            <input type="hidden" name="packId" value={pack.id} />
+            <s-button type="submit" variant="primary" disabled={navigation.state !== "idle"}>
+              Buy {pack.credits} Credits
+            </s-button>
+          </Form>
         </section>
       ))}
+
+      {actionData?.confirmationUrl && (
+        <section className={styles.mediaCard}>
+          <s-banner tone="info">
+            Continue to Shopify to review and approve this one-time video-credit purchase.
+          </s-banner>
+          <s-button href={actionData.confirmationUrl} target="_top" variant="primary">
+            Continue to Shopify approval
+          </s-button>
+        </section>
+      )}
     </s-page>
   );
 }
