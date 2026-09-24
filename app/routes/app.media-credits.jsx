@@ -1,4 +1,4 @@
-import {
+﻿import {
   redirect,
   useActionData,
   useLoaderData,
@@ -160,17 +160,17 @@ export default function MediaCredits() {
   const creditPacks = Object.values(MEDIA_CREDIT_PACKS);
 
   return (
-    <s-page heading="Photo Credit Management">
+    <s-page heading="Video Credit Management">
       <section className={styles.mediaCard}>
         <s-button href="/app/media-tools" variant="primary">
-          ← Back to Media Tools
+          Back to Video Tools
         </s-button>
       </section>
 
       {purchaseReturned && (
         <section className={styles.mediaCard}>
           <s-banner tone="success">
-            Shopify has returned you to GEANOS Store IQ. Approved photo
+            Shopify has returned you to Video Fixer. Approved video
             credits are added automatically when Shopify confirms the
             purchase. Refresh this page if the updated balance does not
             appear immediately.
@@ -185,20 +185,20 @@ export default function MediaCredits() {
       )}
 
       <section className={styles.mediaCard}>
-        <s-heading>Available Photo Credits</s-heading>
+        <s-heading>Available Video Credits</s-heading>
 
         <s-heading>{account.balance} credits available</s-heading>
 
         <s-paragraph>
           Each successfully completed watermark-removal or translation
-          process uses 1 photo credit. Failed processing attempts are
+          process uses 1 video credit. Failed processing attempts are
           refunded automatically.
         </s-paragraph>
 
         {account.balance < 1 && (
           <s-banner tone="warning">
-            No photo credits are currently available. Purchase or add
-            credits before starting photo processing.
+            No video credits are currently available. Purchase or add
+            credits before starting video processing.
           </s-banner>
         )}
       </section>
@@ -243,16 +243,16 @@ export default function MediaCredits() {
                 transaction.type === "usage"
                   ? PROCESSING_TYPE_LABELS[
                       transaction.processingType
-                    ] || "Photo processing"
+                    ] || "Video processing"
                   : CREDIT_TYPE_LABELS[transaction.type] ||
                     "Credit adjustment";
 
               return (
                 <s-list-item key={transaction.id}>
-                  {formatTransactionDate(transaction.createdAt)} —{" "}
-                  {activityLabel} —{" "}
+                  {formatTransactionDate(transaction.createdAt)} {" - "}
+                  {activityLabel} {" - "}
                   {formatCreditAmount(transaction.amount)} credit
-                  {Math.abs(transaction.amount) === 1 ? "" : "s"} —{" "}
+                  {Math.abs(transaction.amount) === 1 ? "" : "s"} {" - "}
                   {formatTransactionStatus(transaction.status)}
                 </s-list-item>
               );
@@ -265,7 +265,7 @@ export default function MediaCredits() {
         <s-heading>Buy More Credits</s-heading>
 
         <s-paragraph>
-          Purchase additional photo credits securely through Shopify.
+          Purchase additional video credits securely through Shopify.
           Credit packs are one-time purchases and unused credits remain
           available because rollover is enabled.
         </s-paragraph>
@@ -273,14 +273,14 @@ export default function MediaCredits() {
 
       {creditPacks.map((pack) => (
         <section className={styles.mediaCard} key={pack.id}>
-          <s-heading>{pack.credits}-Credit Pack</s-heading>
+          <s-heading>{pack.displayName}</s-heading>
           <s-heading>${pack.price}</s-heading>
 
           <s-paragraph>USD</s-paragraph>
 
           <s-paragraph>
             Save ${pack.savings} compared with the standard value of
-            $1.00 per credit.
+            $2.00 USD per credit.
           </s-paragraph>
 
           <s-button
@@ -299,3 +299,4 @@ export default function MediaCredits() {
     </s-page>
   );
 }
+
